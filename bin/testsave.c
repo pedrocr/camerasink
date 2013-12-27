@@ -8,7 +8,6 @@ typedef struct {
   GstElement *pipeline;
   GstElement *queue;
   gchar      *filedir;
-  guint       filenum;
   guint       numframes;
 } StreamInfo;
 
@@ -82,8 +81,6 @@ GstElement *new_save_bin(gchar *filedir) {
 }
 
 void change_file (StreamInfo *si){
-  si->filenum += 0;
-
   if (si->savebin) {
     gst_element_set_state (si->savebin, GST_STATE_NULL);
     gst_bin_remove(GST_BIN(si->pipeline), si->savebin);
@@ -155,9 +152,8 @@ main (int   argc,
   source   = gst_element_factory_make ("videotestsrc", "videotestsrc");
   encoder  = gst_element_factory_make ("x264enc", "x264enc");
   queue  = gst_element_factory_make ("queue", "queue");
-  fakesink = gst_element_factory_make ("fakesink", "fakesink");
-  si.filenum = 0;
-  si.numframes = 0;
+  fakesink = new_save_bin(argv[1]);
+  si.numframes = IFRAMES_PER_FILE;
   si.savebin = fakesink;
   si.pipeline = pipeline;
   si.queue = queue;

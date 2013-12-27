@@ -129,7 +129,7 @@ main (int   argc,
 {
   GMainLoop *loop;
 
-  GstElement *pipeline, *source, *encoder, *queue, *fakesink;
+  GstElement *pipeline, *source, *encoder, *parser, *queue, *fakesink;
   GstBus *bus;
   GstPad *pad;
   guint bus_watch_id;
@@ -155,6 +155,7 @@ main (int   argc,
   pipeline = gst_pipeline_new ("savefile");
   source   = gst_element_factory_make ("rtspsrc", "rtspsrc");
   encoder  = gst_element_factory_make ("rtph264depay", "rtph264depay");
+  parser  = gst_element_factory_make ("h264parse", "h264parse");
   queue  = gst_element_factory_make ("queue", "queue");
   fakesink = new_save_bin(NULL);
   si.numframes = 0;
@@ -163,7 +164,7 @@ main (int   argc,
   si.queue = queue;
   si.filedir = argv[2];
 
-  if (!pipeline || !source || !encoder || !queue || !fakesink) {
+  if (!pipeline || !source || !encoder || !parser || !queue || !fakesink) {
     g_printerr ("One element could not be created. Exiting.\n");
     return -1;
   }
@@ -180,8 +181,8 @@ main (int   argc,
   gst_object_unref (bus);
 
   /* we add all elements into the pipeline */
-  gst_bin_add_many (GST_BIN (pipeline), source, encoder, queue, fakesink, NULL);
-  gst_element_link_many (source, encoder, queue, fakesink,NULL);
+  gst_bin_add_many (GST_BIN (pipeline), source, encoder, parser, queue, fakesink, NULL);
+  gst_element_link_many (source, encoder, parser, queue, fakesink,NULL);
 
   /* Add a probe to react to I-frames at the output of the queue blocking it
      and letting frames pile up if needed */

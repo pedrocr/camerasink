@@ -121,7 +121,7 @@ main (int   argc,
 {
   GMainLoop *loop;
 
-  GstElement *pipeline, *source, *encoder, *queue, *savebin;
+  GstElement *pipeline, *source, *encoder, *queue, *fakesink;
   GstBus *bus;
   GstPad *pad;
   guint bus_watch_id;
@@ -139,18 +139,18 @@ main (int   argc,
 
   /* Create elements */
   pipeline = gst_pipeline_new ("savefile");
-  source   = gst_element_factory_make ("videotestsrc",  "videotestsrc");
-  encoder  = gst_element_factory_make ("x264enc",      "x264enc");
-  queue  = gst_element_factory_make ("queue",     "queue");
-  savebin = new_save_bin(argv[1]);
+  source   = gst_element_factory_make ("videotestsrc", "videotestsrc");
+  encoder  = gst_element_factory_make ("x264enc", "x264enc");
+  queue  = gst_element_factory_make ("queue", "queue");
+  fakesink = gst_element_factory_make ("fakesink", "fakesink");
   si.filenum = 0;
   si.numframes = 0;
-  si.savebin = savebin;
+  si.savebin = fakesink;
   si.pipeline = pipeline;
   si.queue = queue;
   si.filename = argv[1];
 
-  if (!pipeline || !source || !encoder || !queue || !savebin) {
+  if (!pipeline || !source || !encoder || !queue || !fakesink) {
     g_printerr ("One element could not be created. Exiting.\n");
     return -1;
   }
@@ -163,8 +163,8 @@ main (int   argc,
   gst_object_unref (bus);
 
   /* we add all elements into the pipeline */
-  gst_bin_add_many (GST_BIN (pipeline), source, encoder, queue, savebin, NULL);
-  gst_element_link_many (source, encoder, queue, savebin,NULL);
+  gst_bin_add_many (GST_BIN (pipeline), source, encoder, queue, fakesink, NULL);
+  gst_element_link_many (source, encoder, queue, fakesink,NULL);
 
   /* Add a probe to react to I-frames at the output of the queue blocking it
      and letting frames pile up if needed */

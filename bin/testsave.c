@@ -1,6 +1,7 @@
 #include <gst/gst.h>
 #include <glib.h>
 
+/* FIXME: Figure out why changing this to 5 makes negotiation fail on file change */
 #define IFRAMES_PER_FILE 10
 
 typedef struct {

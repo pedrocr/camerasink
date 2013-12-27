@@ -1,0 +1,5 @@
+file "testsave" => ["testsave.c"] do
+  sh "gcc -Wall testsave.c -o testsave $(pkg-config --cflags --libs gstreamer-1.0)"
+end
+
+task :default => ["testsave"]

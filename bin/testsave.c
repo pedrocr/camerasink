@@ -87,14 +87,12 @@ GstElement *new_save_bin(gchar *filedir) {
 }
 
 void change_file (StreamInfo *si){
-  if (si->savebin) {
-    gst_element_set_state (si->savebin, GST_STATE_NULL);
+  gst_element_set_state (si->savebin, GST_STATE_NULL);
     gst_bin_remove(GST_BIN(si->pipeline), si->savebin);
-    si->savebin = new_save_bin(si->filedir);
-    gst_bin_add (GST_BIN (si->pipeline), si->savebin);
+      si->savebin = new_save_bin(si->filedir);
+      gst_bin_add (GST_BIN (si->pipeline), si->savebin);
     gst_element_link (si->queue, si->savebin);
-    gst_element_set_state (si->savebin, GST_STATE_PLAYING);
-  }
+  gst_element_set_state (si->savebin, GST_STATE_PLAYING);
 
   si->numframes = IFRAMES_PER_FILE;
 }
@@ -122,7 +120,7 @@ cb_have_data (GstPad          *pad,
 
 
 void usage () {
-  g_printerr ("Usage: testsave <filename>\n");
+  g_printerr ("Usage: testsave <rtsp url> <filename>\n");
 }
 
 int
@@ -142,28 +140,28 @@ main (int   argc,
   loop = g_main_loop_new (NULL, FALSE);
 
   /* Check input arguments */
-  if (argc != 2) {
+  if (argc != 3) {
     usage();
     return -1;
   }
 
-  if (!g_file_test(argv[1],G_FILE_TEST_IS_DIR)) {
-    g_printerr ("FATAL: \"%s\" is not a directory\n", argv[1]);
+  if (!g_file_test(argv[2],G_FILE_TEST_IS_DIR)) {
+    g_printerr ("FATAL: \"%s\" is not a directory\n", argv[2]);
     usage();
     return -2;
   }
 
   /* Create elements */
   pipeline = gst_pipeline_new ("savefile");
-  source   = gst_element_factory_make ("videotestsrc", "videotestsrc");
-  encoder  = gst_element_factory_make ("x264enc", "x264enc");
+  source   = gst_element_factory_make ("rtspsrc", "rtspsrc");
+  encoder  = gst_element_factory_make ("rtph264depay", "rtph264depay");
   queue  = gst_element_factory_make ("queue", "queue");
   fakesink = new_save_bin(NULL);
   si.numframes = 0;
   si.savebin = fakesink;
   si.pipeline = pipeline;
   si.queue = queue;
-  si.filedir = argv[1];
+  si.filedir = argv[2];
 
   if (!pipeline || !source || !encoder || !queue || !fakesink) {
     g_printerr ("One element could not be created. Exiting.\n");
@@ -171,6 +169,10 @@ main (int   argc,
   }
 
   /* Set up the pipeline */
+
+  /* we set the input filename to the source element */
+  g_print("Reading from %s\n", argv[1]);
+  g_object_set (G_OBJECT (source), "location", argv[1], NULL);
 
   /* we add a message handler */
   bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));

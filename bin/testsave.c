@@ -3,6 +3,10 @@
 
 #define IFRAMES_PER_FILE 10
 
+typedef struct {
+  GstElement *savebin;
+} StreamInfo;
+
 static gboolean
 bus_call (GstBus     *bus,
           GstMessage *msg,
@@ -37,25 +41,6 @@ bus_call (GstBus     *bus,
   return TRUE;
 }
 
-
-static void
-on_pad_added (GstElement *element,
-              GstPad     *pad,
-              gpointer    data)
-{
-  GstPad *sinkpad;
-  GstElement *queue = (GstElement *) data;
-
-  /* We can now link this pad with the vorbis-decoder sink pad */
-  g_print ("Dynamic pad created, linking demuxer/decoder\n");
-
-  sinkpad = gst_element_get_static_pad (queue, "sink");
-
-  gst_pad_link (pad, sinkpad);
-
-  gst_object_unref (sinkpad);
-}
-
 static GstPadProbeReturn
 cb_have_data (GstPad          *pad,
               GstPadProbeInfo *info,
@@ -78,6 +63,36 @@ cb_have_data (GstPad          *pad,
   return GST_PAD_PROBE_PASS;
 }
 
+GstElement *new_save_bin(char *filename) {
+  GstElement *bin, *avimux, *filesink;
+  GstPad *pad;
+  
+  bin      = gst_bin_new ("savebin");
+  avimux   = gst_element_factory_make ("avimux",  "avimux");
+  filesink = gst_element_factory_make ("filesink", "filesink");
+
+  if (!bin || !avimux || !filesink) {
+    g_printerr ("One element could not be created. Exiting.\n");
+    return NULL;
+  }
+
+  gst_bin_add_many (GST_BIN(bin), avimux,filesink, NULL);
+  gst_element_link_many (avimux, filesink, NULL);
+
+  /* we set the input filename to the source element */
+  g_object_set (G_OBJECT (filesink), "location", filename, NULL);
+
+  /* add ghostpad */
+  pad = gst_element_get_request_pad (avimux, "video_0");
+  if (!pad) {
+    g_printerr ("Couldn't get the pad for avimux\n");
+    return NULL;
+  }
+  gst_element_add_pad (bin, gst_ghost_pad_new ("sink", pad));
+  gst_object_unref (GST_OBJECT (pad));
+
+  return bin;
+}
 
 
 int
@@ -86,7 +101,7 @@ main (int   argc,
 {
   GMainLoop *loop;
 
-  GstElement *pipeline, *source, *encoder, *queue, *avimux, *filesink;
+  GstElement *pipeline, *source, *encoder, *queue, *savebin;
   GstBus *bus;
   GstPad *pad;
   guint bus_watch_id;
@@ -94,9 +109,7 @@ main (int   argc,
 
   /* Initialisation */
   gst_init (&argc, &argv);
-
   loop = g_main_loop_new (NULL, FALSE);
-
 
   /* Check input arguments */
   if (argc != 2) {
@@ -104,24 +117,19 @@ main (int   argc,
     return -1;
   }
 
-
-  /* Create gstreamer elements */
-  pipeline = gst_pipeline_new ("audio-player");
+  /* Create elements */
+  pipeline = gst_pipeline_new ("savefile");
   source   = gst_element_factory_make ("videotestsrc",  "videotestsrc");
   encoder  = gst_element_factory_make ("x264enc",      "x264enc");
   queue  = gst_element_factory_make ("queue",     "queue");
-  avimux     = gst_element_factory_make ("avimux",  "avimux");
-  filesink     = gst_element_factory_make ("filesink", "filesink");
+  savebin = new_save_bin(argv[1]);
 
-  if (!pipeline || !source || !encoder || !queue || !avimux || !filesink) {
+  if (!pipeline || !source || !encoder || !queue || !savebin) {
     g_printerr ("One element could not be created. Exiting.\n");
     return -1;
   }
 
   /* Set up the pipeline */
-
-  /* we set the input filename to the source element */
-  g_object_set (G_OBJECT (filesink), "location", argv[1], NULL);
 
   /* we add a message handler */
   bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
@@ -129,44 +137,26 @@ main (int   argc,
   gst_object_unref (bus);
 
   /* we add all elements into the pipeline */
-  /* file-source | ogg-demuxer | vorbis-decoder | converter | alsa-output */
-  gst_bin_add_many (GST_BIN (pipeline),
-                    source, encoder, queue, avimux, filesink, NULL);
+  gst_bin_add_many (GST_BIN (pipeline), source, encoder, queue, savebin, NULL);
+  gst_element_link_many (source, encoder, queue, savebin,NULL);
 
-  /* we link the elements together */
-  /* file-source -> ogg-demuxer ~> vorbis-decoder -> converter -> alsa-output */
-  // gst_element_link (source, encoder);
-  gst_element_link_many (source, encoder, queue, avimux, filesink,NULL);
-  // g_signal_connect (encoder, "pad-added", G_CALLBACK (on_pad_added), queue);
-
-  /* note that the demuxer will be linked to the decoder dynamically.
-     The reason is that Ogg may contain various streams (for example
-     audio and video). The source pad(s) will be created at run time,
-     by the demuxer when it detects the amount and nature of streams.
-     Therefore we connect a callback function which will be executed
-     when the "pad-added" is emitted.*/
-
-  pad = gst_element_get_static_pad (encoder, "src");
+  /* Add a probe to react to I-frames at the output of the queue blocking it
+     and letting frames pile up if needed */
+  pad = gst_element_get_static_pad (queue, "src");
   gst_pad_add_probe (pad, GST_PAD_PROBE_TYPE_BUFFER|GST_PAD_PROBE_TYPE_BLOCK,
       (GstPadProbeCallback) cb_have_data, &numframes, NULL);
   gst_object_unref (pad);
 
-
   /* Set the pipeline to "playing" state*/
-  g_print ("Now playing: %s\n", argv[1]);
   gst_element_set_state (pipeline, GST_STATE_PLAYING);
-
 
   /* Iterate */
   g_print ("Running...\n");
   g_main_loop_run (loop);
 
-
   /* Out of the main loop, clean up nicely */
   g_print ("Returned, stopping playback\n");
   gst_element_set_state (pipeline, GST_STATE_NULL);
-
-  g_print ("Deleting pipeline\n");
   gst_object_unref (GST_OBJECT (pipeline));
   g_source_remove (bus_watch_id);
   g_main_loop_unref (loop);

@@ -5,6 +5,11 @@
 
 typedef struct {
   GstElement *savebin;
+  GstElement *pipeline;
+  GstElement *queue;
+  char       *filename;
+  guint       filenum;
+  guint       numframes;
 } StreamInfo;
 
 static gboolean
@@ -41,28 +46,6 @@ bus_call (GstBus     *bus,
   return TRUE;
 }
 
-static GstPadProbeReturn
-cb_have_data (GstPad          *pad,
-              GstPadProbeInfo *info,
-              gpointer         data)
-{
-  GstBufferFlags flags;
-  guint *numframes = (guint *) data;
-
-  flags = GST_BUFFER_FLAGS(GST_PAD_PROBE_INFO_BUFFER (info));
-
-  if (!(flags & GST_BUFFER_FLAG_DELTA_UNIT)) {
-    if (*numframes == 0) {
-      g_print("Changing file!\n");
-      *numframes = IFRAMES_PER_FILE;
-    }
-    (*numframes)--;
-    g_print("Adding Iframe to file!\n");
-  }
-
-  return GST_PAD_PROBE_PASS;
-}
-
 GstElement *new_save_bin(char *filename) {
   GstElement *bin, *avimux, *filesink;
   GstPad *pad;
@@ -94,6 +77,43 @@ GstElement *new_save_bin(char *filename) {
   return bin;
 }
 
+void change_file (StreamInfo *si){
+  g_print("Changing file!\n");
+  si->filenum += 0;
+
+  if (si->savebin) {
+    gst_element_set_state (si->savebin, GST_STATE_NULL);
+    gst_bin_remove(GST_BIN(si->pipeline), si->savebin);
+    si->savebin = new_save_bin(si->filename);
+    gst_bin_add (GST_BIN (si->pipeline), si->savebin);
+    gst_element_link (si->queue, si->savebin);
+    gst_element_set_state (si->savebin, GST_STATE_PLAYING);
+  }
+
+  si->numframes = IFRAMES_PER_FILE;
+}
+
+static GstPadProbeReturn
+cb_have_data (GstPad          *pad,
+              GstPadProbeInfo *info,
+              gpointer         data)
+{
+  GstBufferFlags flags;
+  StreamInfo *si = (StreamInfo *) data;
+
+  flags = GST_BUFFER_FLAGS(GST_PAD_PROBE_INFO_BUFFER (info));
+
+  if (!(flags & GST_BUFFER_FLAG_DELTA_UNIT)) {
+    if (si->numframes == 0) {
+      change_file(si);
+    }
+    (si->numframes)--;
+    g_print("Adding Iframe to file!\n");
+  }
+
+  return GST_PAD_PROBE_PASS;
+}
+
 
 int
 main (int   argc,
@@ -105,7 +125,7 @@ main (int   argc,
   GstBus *bus;
   GstPad *pad;
   guint bus_watch_id;
-  guint numframes = 0;
+  StreamInfo si;
 
   /* Initialisation */
   gst_init (&argc, &argv);
@@ -123,6 +143,12 @@ main (int   argc,
   encoder  = gst_element_factory_make ("x264enc",      "x264enc");
   queue  = gst_element_factory_make ("queue",     "queue");
   savebin = new_save_bin(argv[1]);
+  si.filenum = 0;
+  si.numframes = 0;
+  si.savebin = savebin;
+  si.pipeline = pipeline;
+  si.queue = queue;
+  si.filename = argv[1];
 
   if (!pipeline || !source || !encoder || !queue || !savebin) {
     g_printerr ("One element could not be created. Exiting.\n");
@@ -144,7 +170,7 @@ main (int   argc,
      and letting frames pile up if needed */
   pad = gst_element_get_static_pad (queue, "src");
   gst_pad_add_probe (pad, GST_PAD_PROBE_TYPE_BUFFER|GST_PAD_PROBE_TYPE_BLOCK,
-      (GstPadProbeCallback) cb_have_data, &numframes, NULL);
+      (GstPadProbeCallback) cb_have_data, &si, NULL);
   gst_object_unref (pad);
 
   /* Set the pipeline to "playing" state*/

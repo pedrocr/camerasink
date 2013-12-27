@@ -1,8 +1,9 @@
 #include <gst/gst.h>
 #include <glib.h>
 
-/* FIXME: Figure out why changing this to 5 makes negotiation fail on file change */
-#define IFRAMES_PER_FILE 10
+/* FIXME: Figure out why changing this to 5 makes gstreamer issue a scary 
+          warning but 4 and 6 works fine*/
+#define IFRAMES_PER_FILE 4
 
 typedef struct {
   GstElement *savebin;
@@ -47,36 +48,36 @@ bus_call (GstBus     *bus,
 }
 
 GstElement *new_save_bin(gchar *filedir) {
-  GstElement *bin, *avimux, *filesink;
+  GstElement *bin, *mux, *filesink;
   GstPad *pad;
   gchar *filename;
 
   if (filedir) {
-    filename = g_strdup_printf("%s/%"G_GINT64_FORMAT".avi",filedir,g_get_real_time());
+    filename = g_strdup_printf("%s/%"G_GINT64_FORMAT".mkv",filedir,g_get_real_time());
   } else {
     filename = "/dev/null";
   }  
 
   bin      = gst_bin_new ("savebin");
-  avimux   = gst_element_factory_make ("avimux",  "avimux");
+  mux   = gst_element_factory_make ("matroskamux",  "matroskamux");
   filesink = gst_element_factory_make ("filesink", "filesink");
 
-  if (!bin || !avimux || !filesink) {
+  if (!bin || !mux || !filesink) {
     g_printerr ("One element could not be created. Exiting.\n");
     return NULL;
   }
 
-  gst_bin_add_many (GST_BIN(bin), avimux,filesink, NULL);
-  gst_element_link_many (avimux, filesink, NULL);
+  gst_bin_add_many (GST_BIN(bin), mux,filesink, NULL);
+  gst_element_link_many (mux, filesink, NULL);
 
   /* we set the input filename to the source element */
   g_print("Writing to %s\n", filename);
   g_object_set (G_OBJECT (filesink), "location", filename, NULL);
 
   /* add ghostpad */
-  pad = gst_element_get_request_pad (avimux, "video_0");
+  pad = gst_element_get_request_pad (mux, "video_%u");
   if (!pad) {
-    g_printerr ("Couldn't get the pad for avimux\n");
+    g_printerr ("Couldn't get the pad for mux\n");
     return NULL;
   }
   gst_element_add_pad (bin, gst_ghost_pad_new ("sink", pad));

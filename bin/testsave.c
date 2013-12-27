@@ -50,8 +50,12 @@ GstElement *new_save_bin(gchar *filedir) {
   GstPad *pad;
   gchar *filename;
 
-  filename = g_strdup_printf("%s/%"G_GINT64_FORMAT".avi",filedir,g_get_real_time());
-  
+  if (filedir) {
+    filename = g_strdup_printf("%s/%"G_GINT64_FORMAT".avi",filedir,g_get_real_time());
+  } else {
+    filename = "/dev/null";
+  }  
+
   bin      = gst_bin_new ("savebin");
   avimux   = gst_element_factory_make ("avimux",  "avimux");
   filesink = gst_element_factory_make ("filesink", "filesink");
@@ -65,7 +69,7 @@ GstElement *new_save_bin(gchar *filedir) {
   gst_element_link_many (avimux, filesink, NULL);
 
   /* we set the input filename to the source element */
-  g_print("Writing to %s!\n", filename);
+  g_print("Writing to %s\n", filename);
   g_object_set (G_OBJECT (filesink), "location", filename, NULL);
 
   /* add ghostpad */
@@ -152,8 +156,8 @@ main (int   argc,
   source   = gst_element_factory_make ("videotestsrc", "videotestsrc");
   encoder  = gst_element_factory_make ("x264enc", "x264enc");
   queue  = gst_element_factory_make ("queue", "queue");
-  fakesink = new_save_bin(argv[1]);
-  si.numframes = IFRAMES_PER_FILE;
+  fakesink = new_save_bin(NULL);
+  si.numframes = 0;
   si.savebin = fakesink;
   si.pipeline = pipeline;
   si.queue = queue;

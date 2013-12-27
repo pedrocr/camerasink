@@ -7,7 +7,7 @@ typedef struct {
   GstElement *savebin;
   GstElement *pipeline;
   GstElement *queue;
-  char       *filename;
+  gchar      *filedir;
   guint       filenum;
   guint       numframes;
 } StreamInfo;
@@ -46,9 +46,12 @@ bus_call (GstBus     *bus,
   return TRUE;
 }
 
-GstElement *new_save_bin(char *filename) {
+GstElement *new_save_bin(gchar *filedir) {
   GstElement *bin, *avimux, *filesink;
   GstPad *pad;
+  gchar *filename;
+
+  filename = g_strdup_printf("%s/%"G_GINT64_FORMAT".avi",filedir,g_get_real_time());
   
   bin      = gst_bin_new ("savebin");
   avimux   = gst_element_factory_make ("avimux",  "avimux");
@@ -63,6 +66,7 @@ GstElement *new_save_bin(char *filename) {
   gst_element_link_many (avimux, filesink, NULL);
 
   /* we set the input filename to the source element */
+  g_print("Writing to %s!\n", filename);
   g_object_set (G_OBJECT (filesink), "location", filename, NULL);
 
   /* add ghostpad */
@@ -78,13 +82,12 @@ GstElement *new_save_bin(char *filename) {
 }
 
 void change_file (StreamInfo *si){
-  g_print("Changing file!\n");
   si->filenum += 0;
 
   if (si->savebin) {
     gst_element_set_state (si->savebin, GST_STATE_NULL);
     gst_bin_remove(GST_BIN(si->pipeline), si->savebin);
-    si->savebin = new_save_bin(si->filename);
+    si->savebin = new_save_bin(si->filedir);
     gst_bin_add (GST_BIN (si->pipeline), si->savebin);
     gst_element_link (si->queue, si->savebin);
     gst_element_set_state (si->savebin, GST_STATE_PLAYING);
@@ -115,6 +118,10 @@ cb_have_data (GstPad          *pad,
 }
 
 
+void usage () {
+  g_printerr ("Usage: testsave <filename>\n");
+}
+
 int
 main (int   argc,
       char *argv[])
@@ -133,8 +140,14 @@ main (int   argc,
 
   /* Check input arguments */
   if (argc != 2) {
-    g_printerr ("Usage: %s <filename>\n", argv[0]);
+    usage();
     return -1;
+  }
+
+  if (!g_file_test(argv[1],G_FILE_TEST_IS_DIR)) {
+    g_printerr ("FATAL: \"%s\" is not a directory\n", argv[1]);
+    usage();
+    return -2;
   }
 
   /* Create elements */
@@ -148,7 +161,7 @@ main (int   argc,
   si.savebin = fakesink;
   si.pipeline = pipeline;
   si.queue = queue;
-  si.filename = argv[1];
+  si.filedir = argv[1];
 
   if (!pipeline || !source || !encoder || !queue || !fakesink) {
     g_printerr ("One element could not be created. Exiting.\n");

@@ -3,7 +3,7 @@ file "testsave" => ["testsave.c"] do
 end
 
 file "testserver" => ["testserver.c"] do
-  sh "gcc -g -Wall testserver.c -o testserver $(pkg-config --cflags --libs gstreamer-0.10 gst-rtsp-server-0.10)"
+  sh "gcc -g -Wall testserver.c -o testserver $(pkg-config --cflags --libs gstreamer-1.0 gst-rtsp-server-1.0)"
 end
 
 task :default => ["testsave","testserver"]

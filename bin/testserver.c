@@ -44,17 +44,23 @@ main (int argc, char *argv[])
   GstRTSPServer *server;
   GstRTSPMountPoints *mounts;
   GstRTSPMediaFactory *factory;
-#ifdef WITH_AUTH
-  GstRTSPAuth *auth;
-  GstRTSPToken *token;
-  gchar *basic;
-  GstRTSPPermissions *permissions;
-#endif
-#ifdef WITH_TLS
-  GTlsCertificate *cert;
-#endif
 
   gst_init (&argc, &argv);
+
+/*
+  gchar *launch_command = "( "
+      "videotestsrc ! video/x-raw,width=352,height=288,framerate=15/1 ! "
+      "x264enc ! rtph264pay name=pay0 pt=96 "
+      "audiotestsrc ! audio/x-raw,rate=8000 ! "
+      "alawenc ! rtppcmapay name=pay1 pt=97 " ")";
+*/
+
+  gchar *launch_command = "videotestsrc ! x264enc ! rtph264pay name=pay0 pt=96 ";
+
+    /* Check input arguments */
+  if (argc > 1) {
+    launch_command = argv[1];
+  }
 
   loop = g_main_loop_new (NULL, FALSE);
 
@@ -70,11 +76,7 @@ main (int argc, char *argv[])
    * any launch line works as long as it contains elements named pay%d. Each
    * element with pay%d names will be a stream */
   factory = gst_rtsp_media_factory_new ();
-  gst_rtsp_media_factory_set_launch (factory, "( "
-      "videotestsrc ! video/x-raw,width=352,height=288,framerate=15/1 ! "
-      "x264enc ! rtph264pay name=pay0 pt=96 "
-      "audiotestsrc ! audio/x-raw,rate=8000 ! "
-      "alawenc ! rtppcmapay name=pay1 pt=97 " ")");
+  gst_rtsp_media_factory_set_launch (factory, launch_command);
 
   /* attach the test factory to the /test url */
   gst_rtsp_mount_points_add_factory (mounts, "/test", factory);

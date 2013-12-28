@@ -83,15 +83,6 @@ GstElement *new_save_bin(gchar *filedir) {
   gst_element_add_pad (bin, gst_ghost_pad_new ("video_sink", pad));
   gst_object_unref (GST_OBJECT (pad));
 
-  /* add audio ghostpad */
-  pad = gst_element_get_request_pad (mux, "audio_%u");
-  if (!pad) {
-    g_printerr ("Couldn't get the audio pad for mux\n");
-    return NULL;
-  }
-  gst_element_add_pad (bin, gst_ghost_pad_new ("audio_sink", pad));
-  gst_object_unref (GST_OBJECT (pad));
-
   return bin;
 }
 

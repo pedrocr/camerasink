@@ -1,8 +1,7 @@
 #include <gst/gst.h>
 #include <glib.h>
 
-/* FIXME: Figure out why changing this to 5 makes gstreamer issue a scary 
-          warning but 4 and 6 works fine*/
+/* FIXME: Figure out why changing this to 5 makes the pipeline stall completely*/
 #define IFRAMES_PER_FILE 4
 
 typedef struct {

@@ -1,7 +1,7 @@
 #include <gst/gst.h>
 #include <glib.h>
 
-#define IFRAMES_PER_FILE 10
+#define MIN_FRAMES_PER_FILE 500
 
 typedef struct {
   GstElement *savebin;
@@ -109,8 +109,6 @@ void change_file (StreamInfo *si){
       gst_bin_add (GST_BIN (si->pipeline), si->savebin);
     gst_element_link (si->queue, si->savebin);
   gst_element_set_state (si->savebin, GST_STATE_PLAYING);
-
-  si->numframes = IFRAMES_PER_FILE;
 }
 
 static GstPadProbeReturn
@@ -121,16 +119,19 @@ cb_have_data (GstPad          *pad,
   GstBufferFlags flags;
   StreamInfo *si = (StreamInfo *) data;
 
+  (si->numframes)++;
+
   flags = GST_BUFFER_FLAGS(GST_PAD_PROBE_INFO_BUFFER (info));
 
   if (!(flags & GST_BUFFER_FLAG_DELTA_UNIT)) {
-    if (si->numframes == 0) {
+    g_print("Buffer is I-frame!\n");
+    if (si->numframes >= MIN_FRAMES_PER_FILE) {
       change_file(si);
+      si->numframes = 0;
     }
-    (si->numframes)--;
-    g_print("Adding Iframe to file!\n");
   }
-
+  
+  g_print("Processing buffer #%d of file\n", si->numframes);
   return GST_PAD_PROBE_PASS;
 }
 

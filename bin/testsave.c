@@ -183,7 +183,7 @@ main (int   argc,
   source   = gst_element_factory_make ("uridecodebin", "uridecodebin");
   queue  = gst_element_factory_make ("queue", "queue");
   fakesink = new_save_bin(NULL);
-  si.numframes = 0;
+  si.numframes = MIN_FRAMES_PER_FILE;
   si.savebin = fakesink;
   si.pipeline = pipeline;
   si.queue = queue;

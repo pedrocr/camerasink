@@ -13,6 +13,24 @@ typedef struct {
   guint       numframes;
 } StreamInfo;
 
+void padadd (GstElement *bin, GstPad *newpad, gpointer data) {
+  GstElement *queue = (GstElement *) data;
+  GstPad *queue_pad;
+
+  queue_pad = gst_element_get_static_pad (queue, "sink");
+  if (!queue_pad) {
+    g_printerr ("Couldn't get pad from queue to connect to uridecodebin\n");
+    return;
+  }
+  gst_pad_link(newpad,queue_pad);
+  gst_object_unref (GST_OBJECT (queue_pad));
+}
+
+gboolean uriplug (GstElement *bin, GstPad *pad, GstCaps *caps, gpointer ud) {
+  return !gst_caps_is_subset(caps, 
+                             gst_caps_from_string ("video/x-h264, parsed=true"));
+}
+
 static gboolean
 bus_call (GstBus     *bus,
           GstMessage *msg,
@@ -129,7 +147,7 @@ main (int   argc,
 {
   GMainLoop *loop;
 
-  GstElement *pipeline, *source, *encoder, *parser, *queue, *fakesink;
+  GstElement *pipeline, *source, *queue, *fakesink;
   GstBus *bus;
   GstPad *pad;
   guint bus_watch_id;
@@ -153,9 +171,7 @@ main (int   argc,
 
   /* Create elements */
   pipeline = gst_pipeline_new ("savefile");
-  source   = gst_element_factory_make ("rtspsrc", "rtspsrc");
-  encoder  = gst_element_factory_make ("rtph264depay", "rtph264depay");
-  parser  = gst_element_factory_make ("h264parse", "h264parse");
+  source   = gst_element_factory_make ("uridecodebin", "uridecodebin");
   queue  = gst_element_factory_make ("queue", "queue");
   fakesink = new_save_bin(NULL);
   si.numframes = 0;
@@ -164,7 +180,7 @@ main (int   argc,
   si.queue = queue;
   si.filedir = argv[2];
 
-  if (!pipeline || !source || !encoder || !parser || !queue || !fakesink) {
+  if (!pipeline || !source || !queue || !fakesink) {
     g_printerr ("One element could not be created. Exiting.\n");
     return -1;
   }
@@ -173,7 +189,9 @@ main (int   argc,
 
   /* we set the input filename to the source element */
   g_print("Reading from %s\n", argv[1]);
-  g_object_set (G_OBJECT (source), "location", argv[1], NULL);
+  g_object_set (G_OBJECT (source), "uri", argv[1], NULL);
+  g_signal_connect (source, "autoplug-continue", G_CALLBACK(uriplug), NULL);
+  g_signal_connect (source, "pad-added", G_CALLBACK(padadd), queue);
 
   /* we add a message handler */
   bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
@@ -181,8 +199,8 @@ main (int   argc,
   gst_object_unref (bus);
 
   /* we add all elements into the pipeline */
-  gst_bin_add_many (GST_BIN (pipeline), source, encoder, parser, queue, fakesink, NULL);
-  gst_element_link_many (source, encoder, parser, queue, fakesink,NULL);
+  gst_bin_add_many (GST_BIN (pipeline), source, queue, fakesink, NULL);
+  gst_element_link_many (queue, fakesink,NULL);
 
   /* Add a probe to react to I-frames at the output of the queue blocking it
      and letting frames pile up if needed */

@@ -1,8 +1,7 @@
 #include <gst/gst.h>
 #include <glib.h>
 
-/* FIXME: Figure out why changing this to 5 makes the pipeline stall completely*/
-#define IFRAMES_PER_FILE 4
+#define IFRAMES_PER_FILE 10
 
 typedef struct {
   GstElement *savebin;

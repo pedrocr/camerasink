@@ -1,6 +1,10 @@
 #include <gst/gst.h>
 #include <glib.h>
 
+/* String to use when saving */
+#define MATROSKA_APPNAME "camerasave"
+/* Nanoseconds between indexes */
+#define MATROSKA_MIN_INDEX_INTERVAL 1000000000
 
 static gboolean
 bus_call (GstBus     *bus,
@@ -38,7 +42,7 @@ bus_call (GstBus     *bus,
 
 
 void usage () {
-  g_printerr ("Usage: testread <file1> ... <file n>\n");
+  g_printerr ("Usage: testread <output file> <input file1> ... <input file n>\n");
 }
 
 int
@@ -46,12 +50,9 @@ main (int   argc,
       char *argv[])
 {
   GMainLoop *loop;
-
-  GstElement *pipeline, *source, *queue, *sink;
+  GstElement *pipeline, *source, *demux, *queue, *mux, *sink;
   GstBus *bus;
-  GstPad *pad;
   guint bus_watch_id;
-  StreamInfo si;
 
   /* Initialisation */
   gst_init (&argc, &argv);
@@ -63,22 +64,39 @@ main (int   argc,
     return -1;
   }
 
+  if (!g_file_test(argv[2],G_FILE_TEST_EXISTS)) {
+    g_printerr ("FATAL: \"%s\" doesn't exist\n", argv[2]);
+    usage();
+    return -2;
+  }
+
   /* Create elements */
   pipeline = gst_pipeline_new ("readfiles");
-  source   = gst_element_factory_make ("uridecodebin", "uridecodebin");
+  source   = gst_element_factory_make ("filesrc", "filesrc");
+  demux  = gst_element_factory_make ("matroskademux", "matroskademux");
   queue  = gst_element_factory_make ("queue", "queue");
+  mux  = gst_element_factory_make ("matroskamux", "matroskamux");
   sink = gst_element_factory_make ("filesink", "filesink");
 
-  if (!pipeline || !source || !queue || !sink) {
+  if (!pipeline || !source || !demux || !queue || !mux || !sink) {
     g_printerr ("One element could not be created. Exiting.\n");
     return -1;
   }
 
   /* Set up the pipeline */
 
+  /* we set the output filename to the sink element */
+  g_print("Writing to %s\n", argv[1]);
+  g_object_set (G_OBJECT (sink), "location", argv[1], NULL);
+
   /* we set the input filename to the source element */
-  g_print("Reading from %s\n", argv[1]);
-  g_object_set (G_OBJECT (source), "uri", argv[1], NULL);
+  g_print("Reading from %s\n", argv[2]);
+  g_object_set (G_OBJECT (source), "location", argv[2], NULL);
+
+  /* make well formatted matroska files */
+  g_object_set (G_OBJECT (mux), "writing-app", MATROSKA_APPNAME, NULL);
+  g_object_set (G_OBJECT (mux), "min-index-interval", 
+                                MATROSKA_MIN_INDEX_INTERVAL, NULL);
 
   /* we add a message handler */
   bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
@@ -86,15 +104,8 @@ main (int   argc,
   gst_object_unref (bus);
 
   /* we add all elements into the pipeline */
-  gst_bin_add_many (GST_BIN (pipeline), source, queue, sink, NULL);
-  gst_element_link_many (queue, fakesink,NULL);
-
-  /* Add a probe to react to I-frames at the output of the queue blocking it
-     and letting frames pile up if needed */
-  pad = gst_element_get_static_pad (queue, "src");
-  gst_pad_add_probe (pad, GST_PAD_PROBE_TYPE_BUFFER|GST_PAD_PROBE_TYPE_BLOCK,
-      (GstPadProbeCallback) cb_have_data, &si, NULL);
-  gst_object_unref (pad);
+  gst_bin_add_many (GST_BIN (pipeline), source, demux, queue, mux, sink, NULL);
+  gst_element_link_many (source, demux, queue, mux, sink,NULL);
 
   /* Set the pipeline to "playing" state*/
   gst_element_set_state (pipeline, GST_STATE_PLAYING);

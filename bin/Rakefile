@@ -1,9 +1,8 @@
-file "testsave" => ["testsave.c"] do
-  sh "libtool --mode=link gcc -g -Wall testsave.c -o testsave $(pkg-config --cflags --libs gstreamer-1.0)"
+PROGS = ["testsave","testserver","testread"]
+PROGS.each do |prog|
+  file prog => ["#{prog}.c"] do
+    sh "libtool --quiet --mode=link gcc -g -Wall #{prog}.c -o #{prog} $(pkg-config --cflags --libs gstreamer-1.0 gstreamer-rtsp-server-1.0)"
+  end
 end
 
-file "testserver" => ["testserver.c"] do
-  sh "libtool --mode=link gcc -g -Wall testserver.c -o testserver $(pkg-config --cflags --libs gstreamer-1.0 gstreamer-rtsp-server-1.0)"
-end
-
-task :default => ["testsave","testserver"]
+task :default => PROGS

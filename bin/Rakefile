@@ -1,7 +1,7 @@
 PROGS = ["testsave","testserver","testread"]
 PROGS.each do |prog|
-  file prog => ["#{prog}.c"] do
-    sh "libtool --quiet --mode=link gcc -g -Wall #{prog}.c -o #{prog} $(pkg-config --cflags --libs gstreamer-1.0 gstreamer-rtsp-server-1.0)"
+  file prog => ["#{prog}.c","Rakefile"] do
+    sh "libtool --quiet --mode=link gcc -g -Wall -Werror -Wfatal-errors #{prog}.c -o #{prog} $(pkg-config --cflags --libs gstreamer-1.0 gstreamer-rtsp-server-1.0)"
   end
 end
 

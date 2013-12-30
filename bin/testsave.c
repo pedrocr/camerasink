@@ -94,7 +94,7 @@ GstElement *new_save_bin(gchar *filedir) {
   /* make well formatted matroska files */
   g_object_set (G_OBJECT (mux), "writing-app", MATROSKA_APPNAME, NULL);
   g_object_set (G_OBJECT (mux), "min-index-interval", 
-                                MATROSKA_MIN_INDEX_INTERVAL, NULL);
+                                (guint64) MATROSKA_MIN_INDEX_INTERVAL, NULL);
 
   /* we set the input filename to the source element */
   g_print("Writing to %s\n", filename);

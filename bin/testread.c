@@ -96,7 +96,7 @@ main (int   argc,
   /* make well formatted matroska files */
   g_object_set (G_OBJECT (mux), "writing-app", MATROSKA_APPNAME, NULL);
   g_object_set (G_OBJECT (mux), "min-index-interval", 
-                                MATROSKA_MIN_INDEX_INTERVAL, NULL);
+                                (guint64) MATROSKA_MIN_INDEX_INTERVAL, NULL);
 
   /* we add a message handler */
   bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));

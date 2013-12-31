@@ -6,6 +6,19 @@
 /* Nanoseconds between indexes */
 #define MATROSKA_MIN_INDEX_INTERVAL 1000000000
 
+void padadd (GstElement *mux, GstPad *newpad, gpointer data) {
+  GstElement *queue = (GstElement *) data;
+  GstPad *queue_pad;
+
+  queue_pad = gst_element_get_static_pad (queue, "sink");
+  if (!queue_pad) {
+    g_printerr ("Couldn't get pad from queue to connect to matroskademux\n");
+    return;
+  }
+  gst_pad_link(newpad,queue_pad);
+  gst_object_unref (GST_OBJECT (queue_pad));
+}
+
 static gboolean
 bus_call (GstBus     *bus,
           GstMessage *msg,
@@ -105,7 +118,11 @@ main (int   argc,
 
   /* we add all elements into the pipeline */
   gst_bin_add_many (GST_BIN (pipeline), source, demux, queue, mux, sink, NULL);
-  gst_element_link_many (source, demux, queue, mux, sink,NULL);
+  gst_element_link_many (source, demux, NULL);
+  gst_element_link_many (queue, mux, sink,NULL);
+
+  /* Connect the video pad of the demux when it shows up */
+  g_signal_connect (demux, "pad-added", G_CALLBACK(padadd), queue);
 
   /* Set the pipeline to "playing" state*/
   gst_element_set_state (pipeline, GST_STATE_PLAYING);

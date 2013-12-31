@@ -8,13 +8,22 @@
 /* Minimum frames before changing files */
 #define MIN_FRAMES_PER_FILE 500
 
+#define GST_EVENT_MY_EOS GST_EVENT_MAKE_TYPE (110, FLAG(DOWNSTREAM) | FLAG(SERIALIZED))
+
 typedef struct {
   GstElement *savebin;
   GstElement *pipeline;
   GstElement *queue;
+  GMainLoop  *loop;
+  
   gchar      *filedir;
   guint       numframes;
+  gboolean    ignoreEOS;
+  gulong      probeid;
 } StreamInfo;
+
+void reset_probe (StreamInfo *si);
+void change_file (StreamInfo *si);
 
 void padadd (GstElement *bin, GstPad *newpad, gpointer data) {
   GstElement *queue = (GstElement *) data;
@@ -39,13 +48,20 @@ bus_call (GstBus     *bus,
           GstMessage *msg,
           gpointer    data)
 {
-  GMainLoop *loop = (GMainLoop *) data;
+  StreamInfo *si = (StreamInfo *) data;
 
   switch (GST_MESSAGE_TYPE (msg)) {
 
     case GST_MESSAGE_EOS:
-      g_print ("End of stream\n");
-      g_main_loop_quit (loop);
+      if (si->ignoreEOS) {
+        g_print ("Changing file\n");
+        si->ignoreEOS = FALSE;
+        change_file(si);
+        reset_probe(si);
+      } else {
+        g_print ("End of stream\n");
+        g_main_loop_quit (si->loop);
+      }
       break;
 
     case GST_MESSAGE_ERROR: {
@@ -58,7 +74,7 @@ bus_call (GstBus     *bus,
       g_printerr ("Error: %s\n", error->message);
       g_error_free (error);
 
-      g_main_loop_quit (loop);
+      g_main_loop_quit (si->loop);
       break;
     }
     default:
@@ -127,6 +143,7 @@ cb_have_data (GstPad          *pad,
               gpointer         data)
 {
   GstBufferFlags flags;
+  GstPad *savebinpad;
   StreamInfo *si = (StreamInfo *) data;
 
   (si->numframes)++;
@@ -136,8 +153,16 @@ cb_have_data (GstPad          *pad,
   if (!(flags & GST_BUFFER_FLAG_DELTA_UNIT)) {
     g_print("Buffer is I-frame!\n");
     if (si->numframes >= MIN_FRAMES_PER_FILE) {
-      change_file(si);
+      si->ignoreEOS = TRUE;
       si->numframes = 0;
+      savebinpad = gst_element_get_static_pad (si->savebin, "video_sink");
+      if (!savebinpad) {
+        g_printerr ("FATAL: Couldn't get the video pad for savebin\n");
+        /* FIXME: Actually make this fatal */
+      }
+      gst_pad_send_event(savebinpad, gst_event_new_eos());
+      gst_object_unref (GST_OBJECT (savebinpad));
+      return GST_PAD_PROBE_OK;
     }
   }
   
@@ -150,6 +175,28 @@ void usage () {
   g_printerr ("Usage: testsave <rtsp url> <filename>\n");
 }
 
+void reset_probe (StreamInfo *si) {
+  gulong probeid;
+  GstPad *pad;
+
+  /* Add a probe to react to I-frames at the output of the queue blocking it
+   and letting frames pile up if needed */
+  pad = gst_element_get_static_pad (si->queue, "src");
+  probeid = gst_pad_add_probe (pad, GST_PAD_PROBE_TYPE_BUFFER|
+                                    GST_PAD_PROBE_TYPE_BLOCK,
+                               (GstPadProbeCallback) cb_have_data, si, NULL);
+
+  if (!probeid) {
+    g_printerr("FATAL: Couldn't set the probe on the queue\n");
+    /* FIXME: actually make this fatal */
+  }
+  if (si->probeid) {
+    gst_pad_remove_probe (pad, si->probeid);
+  }
+  si->probeid = probeid;
+  gst_object_unref (pad);
+}
+
 int
 main (int   argc,
       char *argv[])
@@ -158,7 +205,6 @@ main (int   argc,
 
   GstElement *pipeline, *source, *queue, *fakesink;
   GstBus *bus;
-  GstPad *pad;
   guint bus_watch_id;
   StreamInfo si;
 
@@ -188,6 +234,9 @@ main (int   argc,
   si.pipeline = pipeline;
   si.queue = queue;
   si.filedir = argv[2];
+  si.ignoreEOS = FALSE;
+  si.loop = loop;
+  si.probeid = 0;
 
   if (!pipeline || !source || !queue || !fakesink) {
     g_printerr ("One element could not be created. Exiting.\n");
@@ -204,19 +253,15 @@ main (int   argc,
 
   /* we add a message handler */
   bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
-  bus_watch_id = gst_bus_add_watch (bus, bus_call, loop);
+  bus_watch_id = gst_bus_add_watch (bus, bus_call, &si);
   gst_object_unref (bus);
 
   /* we add all elements into the pipeline */
   gst_bin_add_many (GST_BIN (pipeline), source, queue, fakesink, NULL);
   gst_element_link_many (queue, fakesink,NULL);
 
-  /* Add a probe to react to I-frames at the output of the queue blocking it
-     and letting frames pile up if needed */
-  pad = gst_element_get_static_pad (queue, "src");
-  gst_pad_add_probe (pad, GST_PAD_PROBE_TYPE_BUFFER|GST_PAD_PROBE_TYPE_BLOCK,
-      (GstPadProbeCallback) cb_have_data, &si, NULL);
-  gst_object_unref (pad);
+  /* Setup the data probe on queue element */
+  reset_probe(&si);
 
   /* Set the pipeline to "playing" state*/
   gst_element_set_state (pipeline, GST_STATE_PLAYING);

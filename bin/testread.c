@@ -6,6 +6,9 @@ typedef struct {
   guint       filenum;
   gchar     **filenames;
   GstElement *filesrc;
+  GstElement *mux;
+  GstElement *demux;
+  GstElement *pipeline;
 } FileInfo;
 
 /* String to use when saving */
@@ -13,17 +16,25 @@ typedef struct {
 /* Nanoseconds between indexes */
 #define MATROSKA_MIN_INDEX_INTERVAL 1000000000
 
+static GstPadProbeReturn source_event (GstPad *pad, GstPadProbeInfo *info, 
+                                       gpointer data);
+
 void padadd (GstElement *demux, GstPad *newpad, gpointer data) {
-  GstElement *mux = (GstElement *) data;
+  FileInfo *fi = (FileInfo *) data;
   GstPad *mux_pad;
 
-  mux_pad = gst_element_get_request_pad (mux, "video_0");
+  mux_pad = gst_element_get_request_pad (fi->mux, "video_0");
   if (!mux_pad) {
     g_printerr ("Couldn't get pad from matroskamux to connect to matroskademux\n");
     return;
   }
   gst_pad_link(newpad,mux_pad);
   gst_object_unref (GST_OBJECT (mux_pad));
+
+  /* Add a probe to react to EOS events and switch files */
+  gst_pad_add_probe (newpad, GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM|
+                          GST_PAD_PROBE_TYPE_BLOCK,
+                     (GstPadProbeCallback) source_event, fi, NULL);
 }
 
 static gboolean
@@ -63,8 +74,26 @@ bus_call (GstBus     *bus,
 void change_file(FileInfo *fi) {
   gchar *filename = fi->filenames[fi->filenum];
 
+  if (fi->demux) {
+  gst_element_set_state (fi->demux, GST_STATE_NULL);
+  gst_element_set_state (fi->filesrc, GST_STATE_NULL);
+    gst_bin_remove(GST_BIN(fi->demux), fi->pipeline);
+    gst_bin_remove(GST_BIN(fi->filesrc), fi->pipeline);
+  }
+        fi->filesrc = gst_element_factory_make ("filesrc", "filesrc");
+        fi->demux  = gst_element_factory_make ("matroskademux", "matroskademux");
+        if (!fi->filesrc || !fi->demux) {
+          g_printerr("FATAL: Couldn't create filesrc or matroskademux");
+          /* FIXME: we need to actually fail here */
+        }
+        /* Connect the video pad of the demux when it shows up */
+        g_signal_connect (fi->demux, "pad-added", G_CALLBACK(padadd), fi);
+    gst_bin_add_many (GST_BIN (fi->pipeline), fi->demux, fi->filesrc, NULL);
+    gst_element_link (fi->filesrc, fi->demux);
   g_print("Reading from %s\n", filename);
   g_object_set (G_OBJECT (fi->filesrc), "location", filename, NULL);
+  gst_element_set_state (fi->demux, GST_STATE_PLAYING);
+  gst_element_set_state (fi->filesrc, GST_STATE_PLAYING);
 }
 
 void usage () {
@@ -108,9 +137,8 @@ main (int   argc,
       char *argv[])
 {
   GMainLoop *loop;
-  GstElement *pipeline, *source, *demux, *mux, *sink;
+  GstElement *pipeline, *mux, *sink;
   GstBus *bus;
-  GstPad *pad;
   FileInfo fi;
   guint bus_watch_id;
 
@@ -135,17 +163,18 @@ main (int   argc,
 
   /* Create elements */
   pipeline = gst_pipeline_new ("readfiles");
-  source   = gst_element_factory_make ("filesrc", "filesrc");
-  demux  = gst_element_factory_make ("matroskademux", "matroskademux");
   mux  = gst_element_factory_make ("matroskamux", "matroskamux");
   sink = gst_element_factory_make ("filesink", "filesink");
 
-  if (!pipeline || !source || !demux || !mux || !sink) {
+  if (!pipeline || !mux || !sink) {
     g_printerr ("One element could not be created. Exiting.\n");
     return -1;
   }
 
-  fi.filesrc = source;
+  fi.pipeline = pipeline;
+  fi.mux = mux;
+  fi.demux = NULL;
+  fi.filesrc = NULL;
 
   /* Set up the pipeline */
 
@@ -167,23 +196,8 @@ main (int   argc,
   gst_object_unref (bus);
 
   /* we add all elements into the pipeline */
-  gst_bin_add_many (GST_BIN (pipeline), source, demux, mux, sink, NULL);
-  gst_element_link (source, demux);
+  gst_bin_add_many (GST_BIN (pipeline), mux, sink, NULL);
   gst_element_link (mux, sink);
-
-  /* Connect the video pad of the demux when it shows up */
-  g_signal_connect (demux, "pad-added", G_CALLBACK(padadd), mux);
-
-  /* Add a probe to react to EOS events are switch files */
-  pad = gst_element_get_static_pad (source, "src");
-  if (!pad) {
-    g_printerr ("FATAL: Couldn't get pad from source to install probe\n");
-    return -2;
-  }
-  gst_pad_add_probe (pad, GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM|
-                          GST_PAD_PROBE_TYPE_BLOCK,
-                     (GstPadProbeCallback) source_event, &fi, NULL);
-  gst_object_unref (pad);
 
   /* Set the pipeline to "playing" state*/
   gst_element_set_state (pipeline, GST_STATE_PLAYING);

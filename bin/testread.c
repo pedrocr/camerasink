@@ -7,6 +7,7 @@ typedef struct {
   gchar     **filenames;
   GstElement *filesrc;
   GstElement *mux;
+  GstPad     *muxpad;
   GstElement *demux;
   GstElement *pipeline;
 } FileInfo;
@@ -21,15 +22,16 @@ static GstPadProbeReturn source_event (GstPad *pad, GstPadProbeInfo *info,
 
 void padadd (GstElement *demux, GstPad *newpad, gpointer data) {
   FileInfo *fi = (FileInfo *) data;
-  GstPad *mux_pad;
-
-  mux_pad = gst_element_get_request_pad (fi->mux, "video_0");
-  if (!mux_pad) {
-    g_printerr ("Couldn't get pad from matroskamux to connect to matroskademux\n");
+  
+  if (!fi->muxpad) {
+    fi->muxpad = gst_element_get_request_pad (fi->mux, "video_0");
+  }
+  if (!fi->muxpad) {
+    g_printerr ("FATAL: Couldn't get pad from matroskamux to connect to matroskademux\n");
+    /* FIXME: This should actually be fatal */
     return;
   }
-  gst_pad_link(newpad,mux_pad);
-  gst_object_unref (GST_OBJECT (mux_pad));
+  gst_pad_link(newpad,fi->muxpad);
 
   /* Add a probe to react to EOS events and switch files */
   gst_pad_add_probe (newpad, GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM|
@@ -88,7 +90,7 @@ void create_source(FileInfo *fi) {
   g_object_set (G_OBJECT (fi->filesrc), "location", filename, NULL);
 }
 
-void change_file(FileInfo *fi) {
+gboolean change_file(FileInfo *fi) {
   gst_element_set_state (fi->demux, GST_STATE_NULL);
   gst_element_set_state (fi->filesrc, GST_STATE_NULL);
     gst_bin_remove(GST_BIN(fi->pipeline), fi->demux);
@@ -96,6 +98,8 @@ void change_file(FileInfo *fi) {
     create_source(fi);
   gst_element_set_state (fi->demux, GST_STATE_PLAYING);
   gst_element_set_state (fi->filesrc, GST_STATE_PLAYING);
+
+  return FALSE;
 }
 
 void usage () {
@@ -110,12 +114,12 @@ source_event (GstPad          *pad,
   FileInfo *fi = (FileInfo *) data;
  
   if (GST_EVENT_EOS == GST_EVENT_TYPE(GST_PAD_PROBE_INFO_EVENT (info))) {
-    g_print("Got EOS!");
+    g_print("Got EOS!\n");
 
     (fi->filenum)++;
     if (fi->filenum < fi->numfiles) { /* If we're not past the last file */
-      // change_file(fi);
-      // return GST_PAD_PROBE_DROP;
+      g_idle_add((GSourceFunc) change_file, fi);
+      return GST_PAD_PROBE_DROP;
     }
   }
 
@@ -177,6 +181,7 @@ main (int   argc,
   fi.mux = mux;
   fi.demux = NULL;
   fi.filesrc = NULL;
+  fi.muxpad = NULL;
 
   /* Set up the pipeline */
 

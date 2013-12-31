@@ -180,7 +180,7 @@ main (int   argc,
     g_printerr ("FATAL: Couldn't get pad from source to install probe\n");
     return -2;
   }
-  gst_pad_add_probe (pad, GST_PAD_PROBE_TYPE_EVENT_BOTH|
+  gst_pad_add_probe (pad, GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM|
                           GST_PAD_PROBE_TYPE_BLOCK,
                      (GstPadProbeCallback) source_event, &fi, NULL);
   gst_object_unref (pad);

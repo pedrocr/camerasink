@@ -10,7 +10,7 @@ typedef struct {
   GstPad     *muxpad;
   GstElement *demux;
   GstElement *pipeline;
-} FileInfo;
+} StreamInfo;
 
 /* String to use when saving */
 #define MATROSKA_APPNAME "camerasave"
@@ -21,22 +21,22 @@ static GstPadProbeReturn source_event (GstPad *pad, GstPadProbeInfo *info,
                                        gpointer data);
 
 void padadd (GstElement *demux, GstPad *newpad, gpointer data) {
-  FileInfo *fi = (FileInfo *) data;
+  StreamInfo *si = (StreamInfo *) data;
   
-  if (!fi->muxpad) {
-    fi->muxpad = gst_element_get_request_pad (fi->mux, "video_0");
+  if (!si->muxpad) {
+    si->muxpad = gst_element_get_request_pad (si->mux, "video_0");
   }
-  if (!fi->muxpad) {
+  if (!si->muxpad) {
     g_printerr ("FATAL: Couldn't get pad from matroskamux to connect to matroskademux\n");
     /* FIXME: This should actually be fatal */
     return;
   }
-  gst_pad_link(newpad,fi->muxpad);
+  gst_pad_link(newpad,si->muxpad);
 
   /* Add a probe to react to EOS events and switch files */
   gst_pad_add_probe (newpad, GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM|
                           GST_PAD_PROBE_TYPE_BLOCK,
-                     (GstPadProbeCallback) source_event, fi, NULL);
+                     (GstPadProbeCallback) source_event, si, NULL);
 }
 
 static gboolean
@@ -73,31 +73,31 @@ bus_call (GstBus     *bus,
   return TRUE;
 }
 
-void create_source(FileInfo *fi) {
-  gchar *filename = fi->filenames[fi->filenum];
+void create_source(StreamInfo *si) {
+  gchar *filename = si->filenames[si->filenum];
 
-  fi->filesrc = gst_element_factory_make ("filesrc", "filesrc");
-  fi->demux  = gst_element_factory_make ("matroskademux", "matroskademux");
-  if (!fi->filesrc || !fi->demux) {
+  si->filesrc = gst_element_factory_make ("filesrc", "filesrc");
+  si->demux  = gst_element_factory_make ("matroskademux", "matroskademux");
+  if (!si->filesrc || !si->demux) {
     g_printerr("FATAL: Couldn't create filesrc or matroskademux");
     /* FIXME: we need to actually fail here */
   }
   /* Connect the video pad of the demux when it shows up */
-  g_signal_connect (fi->demux, "pad-added", G_CALLBACK(padadd), fi);
-  gst_bin_add_many (GST_BIN (fi->pipeline), fi->demux, fi->filesrc, NULL);
-  gst_element_link (fi->filesrc, fi->demux);
+  g_signal_connect (si->demux, "pad-added", G_CALLBACK(padadd), si);
+  gst_bin_add_many (GST_BIN (si->pipeline), si->demux, si->filesrc, NULL);
+  gst_element_link (si->filesrc, si->demux);
   g_print("Reading from %s\n", filename);
-  g_object_set (G_OBJECT (fi->filesrc), "location", filename, NULL);
+  g_object_set (G_OBJECT (si->filesrc), "location", filename, NULL);
 }
 
-gboolean change_file(FileInfo *fi) {
-  gst_element_set_state (fi->demux, GST_STATE_NULL);
-  gst_element_set_state (fi->filesrc, GST_STATE_NULL);
-    gst_bin_remove(GST_BIN(fi->pipeline), fi->demux);
-    gst_bin_remove(GST_BIN(fi->pipeline), fi->filesrc);
-    create_source(fi);
-  gst_element_set_state (fi->demux, GST_STATE_PLAYING);
-  gst_element_set_state (fi->filesrc, GST_STATE_PLAYING);
+gboolean change_file(StreamInfo *si) {
+  gst_element_set_state (si->demux, GST_STATE_NULL);
+  gst_element_set_state (si->filesrc, GST_STATE_NULL);
+    gst_bin_remove(GST_BIN(si->pipeline), si->demux);
+    gst_bin_remove(GST_BIN(si->pipeline), si->filesrc);
+    create_source(si);
+  gst_element_set_state (si->demux, GST_STATE_PLAYING);
+  gst_element_set_state (si->filesrc, GST_STATE_PLAYING);
 
   return FALSE;
 }
@@ -111,14 +111,14 @@ source_event (GstPad          *pad,
               GstPadProbeInfo *info,
               gpointer         data)
 {
-  FileInfo *fi = (FileInfo *) data;
+  StreamInfo *si = (StreamInfo *) data;
  
   if (GST_EVENT_EOS == GST_EVENT_TYPE(GST_PAD_PROBE_INFO_EVENT (info))) {
     g_print("Got EOS!\n");
 
-    (fi->filenum)++;
-    if (fi->filenum < fi->numfiles) { /* If we're not past the last file */
-      g_idle_add((GSourceFunc) change_file, fi);
+    (si->filenum)++;
+    if (si->filenum < si->numfiles) { /* If we're not past the last file */
+      g_idle_add((GSourceFunc) change_file, si);
       return GST_PAD_PROBE_DROP;
     }
   }
@@ -126,7 +126,7 @@ source_event (GstPad          *pad,
   return GST_PAD_PROBE_PASS;
 }
 
-gboolean test_files(FileInfo *fl) {
+gboolean test_files(StreamInfo *fl) {
   guint i;
 
   for(i=0; i < fl->filenum; i++) {
@@ -145,7 +145,7 @@ main (int   argc,
   GMainLoop *loop;
   GstElement *pipeline, *mux, *sink;
   GstBus *bus;
-  FileInfo fi;
+  StreamInfo si;
   guint bus_watch_id;
 
   /* Initialisation */
@@ -158,11 +158,11 @@ main (int   argc,
     return -1;
   }
 
-  fi.numfiles = argc - 2;
-  fi.filenum = 0;
-  fi.filenames = &argv[2];
+  si.numfiles = argc - 2;
+  si.filenum = 0;
+  si.filenames = &argv[2];
 
-  if (!test_files(&fi)) {
+  if (!test_files(&si)) {
     usage();
     return -2;
   }
@@ -177,11 +177,11 @@ main (int   argc,
     return -1;
   }
 
-  fi.pipeline = pipeline;
-  fi.mux = mux;
-  fi.demux = NULL;
-  fi.filesrc = NULL;
-  fi.muxpad = NULL;
+  si.pipeline = pipeline;
+  si.mux = mux;
+  si.demux = NULL;
+  si.filesrc = NULL;
+  si.muxpad = NULL;
 
   /* Set up the pipeline */
 
@@ -190,7 +190,7 @@ main (int   argc,
   g_object_set (G_OBJECT (sink), "location", argv[1], NULL);
 
   /* we set the input filename to the source element */
-  create_source(&fi);
+  create_source(&si);
 
   /* make well formatted matroska files */
   g_object_set (G_OBJECT (mux), "writing-app", MATROSKA_APPNAME, NULL);

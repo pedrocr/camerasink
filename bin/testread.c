@@ -13,17 +13,17 @@ typedef struct {
 /* Nanoseconds between indexes */
 #define MATROSKA_MIN_INDEX_INTERVAL 1000000000
 
-void padadd (GstElement *mux, GstPad *newpad, gpointer data) {
-  GstElement *queue = (GstElement *) data;
-  GstPad *queue_pad;
+void padadd (GstElement *demux, GstPad *newpad, gpointer data) {
+  GstElement *mux = (GstElement *) data;
+  GstPad *mux_pad;
 
-  queue_pad = gst_element_get_static_pad (queue, "sink");
-  if (!queue_pad) {
-    g_printerr ("Couldn't get pad from queue to connect to matroskademux\n");
+  mux_pad = gst_element_get_request_pad (mux, "video_0");
+  if (!mux_pad) {
+    g_printerr ("Couldn't get pad from matroskamux to connect to matroskademux\n");
     return;
   }
-  gst_pad_link(newpad,queue_pad);
-  gst_object_unref (GST_OBJECT (queue_pad));
+  gst_pad_link(newpad,mux_pad);
+  gst_object_unref (GST_OBJECT (mux_pad));
 }
 
 static gboolean
@@ -108,7 +108,7 @@ main (int   argc,
       char *argv[])
 {
   GMainLoop *loop;
-  GstElement *pipeline, *source, *demux, *queue, *mux, *sink;
+  GstElement *pipeline, *source, *demux, *mux, *sink;
   GstBus *bus;
   GstPad *pad;
   FileInfo fi;
@@ -137,11 +137,10 @@ main (int   argc,
   pipeline = gst_pipeline_new ("readfiles");
   source   = gst_element_factory_make ("filesrc", "filesrc");
   demux  = gst_element_factory_make ("matroskademux", "matroskademux");
-  queue  = gst_element_factory_make ("queue", "queue");
   mux  = gst_element_factory_make ("matroskamux", "matroskamux");
   sink = gst_element_factory_make ("filesink", "filesink");
 
-  if (!pipeline || !source || !demux || !queue || !mux || !sink) {
+  if (!pipeline || !source || !demux || !mux || !sink) {
     g_printerr ("One element could not be created. Exiting.\n");
     return -1;
   }
@@ -168,12 +167,12 @@ main (int   argc,
   gst_object_unref (bus);
 
   /* we add all elements into the pipeline */
-  gst_bin_add_many (GST_BIN (pipeline), source, demux, queue, mux, sink, NULL);
-  gst_element_link_many (source, demux, NULL);
-  gst_element_link_many (queue, mux, sink,NULL);
+  gst_bin_add_many (GST_BIN (pipeline), source, demux, mux, sink, NULL);
+  gst_element_link (source, demux);
+  gst_element_link (mux, sink);
 
   /* Connect the video pad of the demux when it shows up */
-  g_signal_connect (demux, "pad-added", G_CALLBACK(padadd), queue);
+  g_signal_connect (demux, "pad-added", G_CALLBACK(padadd), mux);
 
   /* Add a probe to react to EOS events are switch files */
   pad = gst_element_get_static_pad (source, "src");

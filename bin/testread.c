@@ -77,6 +77,8 @@ source_event (GstPad          *pad,
               gpointer         data)
 {
   FileInfo *fi = (FileInfo *) data;
+
+  g_print("Got event: %s\n", gst_event_type_get_name(GST_EVENT_TYPE(GST_PAD_PROBE_INFO_EVENT (info))));
   
   if (GST_EVENT_EOS == GST_EVENT_TYPE(GST_PAD_PROBE_INFO_EVENT (info))) {
     (fi->filenum)++;
@@ -179,7 +181,7 @@ main (int   argc,
     g_printerr ("FATAL: Couldn't get pad from source to install probe\n");
     return -2;
   }
-  gst_pad_add_probe (pad, GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM|
+  gst_pad_add_probe (pad, GST_PAD_PROBE_TYPE_EVENT_BOTH|
                           GST_PAD_PROBE_TYPE_BLOCK,
                      (GstPadProbeCallback) source_event, &fi, NULL);
   gst_object_unref (pad);

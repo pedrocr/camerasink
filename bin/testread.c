@@ -1,6 +1,13 @@
 #include <gst/gst.h>
 #include <glib.h>
 
+typedef struct {
+  guint       numfiles;
+  guint       filenum;
+  gchar     **filenames;
+  GstElement *filesrc;
+} FileInfo;
+
 /* String to use when saving */
 #define MATROSKA_APPNAME "camerasave"
 /* Nanoseconds between indexes */
@@ -53,20 +60,39 @@ bus_call (GstBus     *bus,
   return TRUE;
 }
 
+void change_file(FileInfo *fi) {
+  gchar *filename = fi->filenames[fi->filenum];
+
+  g_print("Reading from %s\n", filename);
+  g_object_set (G_OBJECT (fi->filesrc), "location", filename, NULL);
+}
 
 void usage () {
   g_printerr ("Usage: testread <output file> <input file1> ... <input file n>\n");
 }
 
-typedef struct {
-  guint num;
-  gchar **filenames;
-} FileList;
+static GstPadProbeReturn
+source_event (GstPad          *pad,
+              GstPadProbeInfo *info,
+              gpointer         data)
+{
+  FileInfo *fi = (FileInfo *) data;
+  
+  if (GST_EVENT_EOS == GST_EVENT_TYPE(GST_PAD_PROBE_INFO_EVENT (info))) {
+    (fi->filenum)++;
+    if (fi->filenum < fi->numfiles) { /* If we're not past the last file */
+      change_file(fi);
+      return GST_PAD_PROBE_DROP;
+    }
+  }
 
-gboolean test_files(FileList *fl) {
+  return GST_PAD_PROBE_PASS;
+}
+
+gboolean test_files(FileInfo *fl) {
   guint i;
 
-  for(i=0; i < fl->num; i++) {
+  for(i=0; i < fl->filenum; i++) {
     if (!g_file_test(fl->filenames[i],G_FILE_TEST_EXISTS)) {
       g_printerr ("FATAL: \"%s\" doesn't exist\n", fl->filenames[i]);
       return FALSE;
@@ -82,7 +108,8 @@ main (int   argc,
   GMainLoop *loop;
   GstElement *pipeline, *source, *demux, *queue, *mux, *sink;
   GstBus *bus;
-  FileList fi;
+  GstPad *pad;
+  FileInfo fi;
   guint bus_watch_id;
 
   /* Initialisation */
@@ -95,7 +122,8 @@ main (int   argc,
     return -1;
   }
 
-  fi.num = argc - 2;
+  fi.numfiles = argc - 2;
+  fi.filenum = 0;
   fi.filenames = &argv[2];
 
   if (!test_files(&fi)) {
@@ -116,6 +144,8 @@ main (int   argc,
     return -1;
   }
 
+  fi.filesrc = source;
+
   /* Set up the pipeline */
 
   /* we set the output filename to the sink element */
@@ -123,8 +153,7 @@ main (int   argc,
   g_object_set (G_OBJECT (sink), "location", argv[1], NULL);
 
   /* we set the input filename to the source element */
-  g_print("Reading from %s\n", argv[2]);
-  g_object_set (G_OBJECT (source), "location", argv[2], NULL);
+  change_file(&fi);
 
   /* make well formatted matroska files */
   g_object_set (G_OBJECT (mux), "writing-app", MATROSKA_APPNAME, NULL);
@@ -143,6 +172,17 @@ main (int   argc,
 
   /* Connect the video pad of the demux when it shows up */
   g_signal_connect (demux, "pad-added", G_CALLBACK(padadd), queue);
+
+  /* Add a probe to react to EOS events are switch files */
+  pad = gst_element_get_static_pad (source, "src");
+  if (!pad) {
+    g_printerr ("FATAL: Couldn't get pad from source to install probe\n");
+    return -2;
+  }
+  gst_pad_add_probe (pad, GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM|
+                          GST_PAD_PROBE_TYPE_BLOCK,
+                     (GstPadProbeCallback) source_event, &fi, NULL);
+  gst_object_unref (pad);
 
   /* Set the pipeline to "playing" state*/
   gst_element_set_state (pipeline, GST_STATE_PLAYING);

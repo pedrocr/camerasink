@@ -58,6 +58,23 @@ void usage () {
   g_printerr ("Usage: testread <output file> <input file1> ... <input file n>\n");
 }
 
+typedef struct {
+  guint num;
+  gchar **filenames;
+} FileList;
+
+gboolean test_files(FileList *fl) {
+  guint i;
+
+  for(i=0; i < fl->num; i++) {
+    if (!g_file_test(fl->filenames[i],G_FILE_TEST_EXISTS)) {
+      g_printerr ("FATAL: \"%s\" doesn't exist\n", fl->filenames[i]);
+      return FALSE;
+    }
+  }
+  return TRUE;
+}
+
 int
 main (int   argc,
       char *argv[])
@@ -65,6 +82,7 @@ main (int   argc,
   GMainLoop *loop;
   GstElement *pipeline, *source, *demux, *queue, *mux, *sink;
   GstBus *bus;
+  FileList fi;
   guint bus_watch_id;
 
   /* Initialisation */
@@ -77,8 +95,10 @@ main (int   argc,
     return -1;
   }
 
-  if (!g_file_test(argv[2],G_FILE_TEST_EXISTS)) {
-    g_printerr ("FATAL: \"%s\" doesn't exist\n", argv[2]);
+  fi.num = argc - 2;
+  fi.filenames = &argv[2];
+
+  if (!test_files(&fi)) {
     usage();
     return -2;
   }

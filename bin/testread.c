@@ -71,27 +71,29 @@ bus_call (GstBus     *bus,
   return TRUE;
 }
 
-void change_file(FileInfo *fi) {
+void create_source(FileInfo *fi) {
   gchar *filename = fi->filenames[fi->filenum];
 
-  if (fi->demux) {
-  gst_element_set_state (fi->demux, GST_STATE_NULL);
-  gst_element_set_state (fi->filesrc, GST_STATE_NULL);
-    gst_bin_remove(GST_BIN(fi->demux), fi->pipeline);
-    gst_bin_remove(GST_BIN(fi->filesrc), fi->pipeline);
+  fi->filesrc = gst_element_factory_make ("filesrc", "filesrc");
+  fi->demux  = gst_element_factory_make ("matroskademux", "matroskademux");
+  if (!fi->filesrc || !fi->demux) {
+    g_printerr("FATAL: Couldn't create filesrc or matroskademux");
+    /* FIXME: we need to actually fail here */
   }
-        fi->filesrc = gst_element_factory_make ("filesrc", "filesrc");
-        fi->demux  = gst_element_factory_make ("matroskademux", "matroskademux");
-        if (!fi->filesrc || !fi->demux) {
-          g_printerr("FATAL: Couldn't create filesrc or matroskademux");
-          /* FIXME: we need to actually fail here */
-        }
-        /* Connect the video pad of the demux when it shows up */
-        g_signal_connect (fi->demux, "pad-added", G_CALLBACK(padadd), fi);
-    gst_bin_add_many (GST_BIN (fi->pipeline), fi->demux, fi->filesrc, NULL);
-    gst_element_link (fi->filesrc, fi->demux);
+  /* Connect the video pad of the demux when it shows up */
+  g_signal_connect (fi->demux, "pad-added", G_CALLBACK(padadd), fi);
+  gst_bin_add_many (GST_BIN (fi->pipeline), fi->demux, fi->filesrc, NULL);
+  gst_element_link (fi->filesrc, fi->demux);
   g_print("Reading from %s\n", filename);
   g_object_set (G_OBJECT (fi->filesrc), "location", filename, NULL);
+}
+
+void change_file(FileInfo *fi) {
+  gst_element_set_state (fi->demux, GST_STATE_NULL);
+  gst_element_set_state (fi->filesrc, GST_STATE_NULL);
+    gst_bin_remove(GST_BIN(fi->pipeline), fi->demux);
+    gst_bin_remove(GST_BIN(fi->pipeline), fi->filesrc);
+    create_source(fi);
   gst_element_set_state (fi->demux, GST_STATE_PLAYING);
   gst_element_set_state (fi->filesrc, GST_STATE_PLAYING);
 }
@@ -106,14 +108,14 @@ source_event (GstPad          *pad,
               gpointer         data)
 {
   FileInfo *fi = (FileInfo *) data;
-
-  g_print("Got event: %s\n", gst_event_type_get_name(GST_EVENT_TYPE(GST_PAD_PROBE_INFO_EVENT (info))));
-  
+ 
   if (GST_EVENT_EOS == GST_EVENT_TYPE(GST_PAD_PROBE_INFO_EVENT (info))) {
+    g_print("Got EOS!");
+
     (fi->filenum)++;
     if (fi->filenum < fi->numfiles) { /* If we're not past the last file */
-      change_file(fi);
-      return GST_PAD_PROBE_DROP;
+      // change_file(fi);
+      // return GST_PAD_PROBE_DROP;
     }
   }
 
@@ -183,7 +185,7 @@ main (int   argc,
   g_object_set (G_OBJECT (sink), "location", argv[1], NULL);
 
   /* we set the input filename to the source element */
-  change_file(&fi);
+  create_source(&fi);
 
   /* make well formatted matroska files */
   g_object_set (G_OBJECT (mux), "writing-app", MATROSKA_APPNAME, NULL);

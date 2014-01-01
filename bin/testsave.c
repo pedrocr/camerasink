@@ -8,18 +8,19 @@
 /* Minimum frames before changing files */
 #define MIN_FRAMES_PER_FILE 500
 
-#define GST_EVENT_MY_EOS GST_EVENT_MAKE_TYPE (110, FLAG(DOWNSTREAM) | FLAG(SERIALIZED))
-
 typedef struct {
-  GstElement *savebin;
   GstElement *pipeline;
-  GstElement *queue;
   GMainLoop  *loop;
+
+  GstElement *source;
+  GstElement *queue;
+  GstElement *savebin;
   
-  gchar      *filedir;
-  guint       numframes;
   gboolean    ignoreEOS;
   gulong      probeid;
+
+  gchar      *filedir;
+  guint       numframes;
 } StreamInfo;
 
 void reset_probe (StreamInfo *si);
@@ -201,16 +202,13 @@ int
 main (int   argc,
       char *argv[])
 {
-  GMainLoop *loop;
-
-  GstElement *pipeline, *source, *queue, *fakesink;
   GstBus *bus;
   guint bus_watch_id;
   StreamInfo si;
 
   /* Initialisation */
   gst_init (&argc, &argv);
-  loop = g_main_loop_new (NULL, FALSE);
+  si.loop = g_main_loop_new (NULL, FALSE);
 
   /* Check input arguments */
   if (argc != 3) {
@@ -225,20 +223,16 @@ main (int   argc,
   }
 
   /* Create elements */
-  pipeline = gst_pipeline_new ("savefile");
-  source   = gst_element_factory_make ("uridecodebin", "uridecodebin");
-  queue  = gst_element_factory_make ("queue", "queue");
-  fakesink = new_save_bin(NULL);
+  si.pipeline = gst_pipeline_new ("savefile");
+  si.source   = gst_element_factory_make ("uridecodebin", "uridecodebin");
+  si.queue  = gst_element_factory_make ("queue", "queue");
+  si.savebin = new_save_bin(NULL);
   si.numframes = MIN_FRAMES_PER_FILE;
-  si.savebin = fakesink;
-  si.pipeline = pipeline;
-  si.queue = queue;
   si.filedir = argv[2];
   si.ignoreEOS = FALSE;
-  si.loop = loop;
   si.probeid = 0;
 
-  if (!pipeline || !source || !queue || !fakesink) {
+  if (!si.pipeline || !si.source || !si.queue || !si.savebin) {
     g_printerr ("One element could not be created. Exiting.\n");
     return -1;
   }
@@ -247,35 +241,35 @@ main (int   argc,
 
   /* we set the input filename to the source element */
   g_print("Reading from %s\n", argv[1]);
-  g_object_set (G_OBJECT (source), "uri", argv[1], NULL);
-  g_signal_connect (source, "autoplug-continue", G_CALLBACK(uriplug), NULL);
-  g_signal_connect (source, "pad-added", G_CALLBACK(padadd), queue);
+  g_object_set (G_OBJECT (si.source), "uri", argv[1], NULL);
+  g_signal_connect (si.source, "autoplug-continue", G_CALLBACK(uriplug), NULL);
+  g_signal_connect (si.source, "pad-added", G_CALLBACK(padadd), si.queue);
 
   /* we add a message handler */
-  bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
+  bus = gst_pipeline_get_bus (GST_PIPELINE (si.pipeline));
   bus_watch_id = gst_bus_add_watch (bus, bus_call, &si);
   gst_object_unref (bus);
 
   /* we add all elements into the pipeline */
-  gst_bin_add_many (GST_BIN (pipeline), source, queue, fakesink, NULL);
-  gst_element_link_many (queue, fakesink,NULL);
+  gst_bin_add_many (GST_BIN (si.pipeline), si.source, si.queue, si.savebin, NULL);
+  gst_element_link_many (si.queue, si.savebin,NULL);
 
   /* Setup the data probe on queue element */
   reset_probe(&si);
 
   /* Set the pipeline to "playing" state*/
-  gst_element_set_state (pipeline, GST_STATE_PLAYING);
+  gst_element_set_state (si.pipeline, GST_STATE_PLAYING);
 
   /* Iterate */
   g_print ("Running...\n");
-  g_main_loop_run (loop);
+  g_main_loop_run (si.loop);
 
   /* Out of the main loop, clean up nicely */
   g_print ("Returned, stopping playback\n");
-  gst_element_set_state (pipeline, GST_STATE_NULL);
-  gst_object_unref (GST_OBJECT (pipeline));
+  gst_element_set_state (si.pipeline, GST_STATE_NULL);
+  gst_object_unref (GST_OBJECT (si.pipeline));
   g_source_remove (bus_watch_id);
-  g_main_loop_unref (loop);
+  g_main_loop_unref (si.loop);
 
   return 0;
 }

@@ -15,6 +15,8 @@ typedef struct {
   GstElement *source;
   GstElement *queue;
   GstElement *savebin;
+
+  GstPad     *queuepad;
   
   gboolean    ignoreEOS;
   gulong      probeid;
@@ -58,7 +60,7 @@ bus_call (GstBus     *bus,
         g_print ("Changing file\n");
         si->ignoreEOS = FALSE;
         change_file(si);
-        reset_probe(si);
+        gst_pad_unblock (si->queuepad);
       } else {
         g_print ("End of stream\n");
         g_main_loop_quit (si->loop);
@@ -176,28 +178,6 @@ void usage () {
   g_printerr ("Usage: testsave <rtsp url> <filename>\n");
 }
 
-void reset_probe (StreamInfo *si) {
-  gulong probeid;
-  GstPad *pad;
-
-  /* Add a probe to react to I-frames at the output of the queue blocking it
-   and letting frames pile up if needed */
-  pad = gst_element_get_static_pad (si->queue, "src");
-  probeid = gst_pad_add_probe (pad, GST_PAD_PROBE_TYPE_BUFFER|
-                                    GST_PAD_PROBE_TYPE_BLOCK,
-                               (GstPadProbeCallback) cb_have_data, si, NULL);
-
-  if (!probeid) {
-    g_printerr("FATAL: Couldn't set the probe on the queue\n");
-    /* FIXME: actually make this fatal */
-  }
-  if (si->probeid) {
-    gst_pad_remove_probe (pad, si->probeid);
-  }
-  si->probeid = probeid;
-  gst_object_unref (pad);
-}
-
 int
 main (int   argc,
       char *argv[])
@@ -226,13 +206,14 @@ main (int   argc,
   si.pipeline = gst_pipeline_new ("savefile");
   si.source   = gst_element_factory_make ("uridecodebin", "uridecodebin");
   si.queue  = gst_element_factory_make ("queue", "queue");
+  si.queuepad = gst_element_get_static_pad (si.queue, "src");
   si.savebin = new_save_bin(NULL);
   si.numframes = MIN_FRAMES_PER_FILE;
   si.filedir = argv[2];
   si.ignoreEOS = FALSE;
   si.probeid = 0;
 
-  if (!si.pipeline || !si.source || !si.queue || !si.savebin) {
+  if (!si.pipeline || !si.source || !si.queue || !si.queuepad || !si.savebin) {
     g_printerr ("One element could not be created. Exiting.\n");
     return -1;
   }
@@ -255,7 +236,15 @@ main (int   argc,
   gst_element_link_many (si.queue, si.savebin,NULL);
 
   /* Setup the data probe on queue element */
-  reset_probe(&si);
+  /* Add a probe to react to I-frames at the output of the queue blocking it
+ and letting frames pile up if needed */
+  si.probeid = gst_pad_add_probe (si.queuepad, GST_PAD_PROBE_TYPE_BUFFER|
+                                               GST_PAD_PROBE_TYPE_BLOCK,
+                                   (GstPadProbeCallback) cb_have_data, &si, NULL);
+  if (!si.probeid) {
+    g_printerr("FATAL: Couldn't set the probe on the queue\n");
+    return -2;
+  }
 
   /* Set the pipeline to "playing" state*/
   gst_element_set_state (si.pipeline, GST_STATE_PLAYING);

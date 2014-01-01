@@ -90,11 +90,11 @@ bus_call (GstBus     *bus,
 
 static GstPadProbeReturn ignore_eos (GstPad *pad, GstPadProbeInfo *info, 
                                      gpointer data) {
-  GstBus *bus = (GstBus *) data;
+  StreamInfo *si = (StreamInfo *) data;
 
   if (GST_EVENT_EOS == GST_EVENT_TYPE(GST_PAD_PROBE_INFO_EVENT(info))) {
-    gst_bus_post(bus, gst_message_new_custom(GST_MESSAGE_APPLICATION, 
-                                             (GstObject *) pad, NULL));
+    gst_bus_post(si->bus, gst_message_new_custom(GST_MESSAGE_APPLICATION, 
+                                                 (GstObject *) pad, NULL));
     return GST_PAD_PROBE_DROP;
   }
   return GST_PAD_PROBE_PASS;
@@ -136,7 +136,7 @@ GstElement *new_save_bin(gchar *filedir, StreamInfo *si) {
   }
   probeid = gst_pad_add_probe (muxpad, GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM|
                                        GST_PAD_PROBE_TYPE_BLOCK_DOWNSTREAM,
-                               (GstPadProbeCallback) ignore_eos, si->bus, NULL);
+                               (GstPadProbeCallback) ignore_eos, si, NULL);
   if (!probeid) {
     g_printerr("FATAL: Couldn't set the probe on the mux src pad\n");
     /* FIXME: actually make this fatal */

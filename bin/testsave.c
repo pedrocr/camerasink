@@ -11,6 +11,9 @@
 typedef struct {
   GstElement *pipeline;
   GMainLoop  *loop;
+  GstBus     *bus;
+
+  gulong      bus_watch_id;
 
   GstElement *source;
   GstElement *queue;
@@ -18,14 +21,12 @@ typedef struct {
 
   GstPad     *queuepad;
   
-  gboolean    ignoreEOS;
   gulong      probeid;
 
   gchar      *filedir;
   guint       numframes;
 } StreamInfo;
 
-void reset_probe (StreamInfo *si);
 void change_file (StreamInfo *si);
 
 void padadd (GstElement *bin, GstPad *newpad, gpointer data) {
@@ -55,16 +56,16 @@ bus_call (GstBus     *bus,
 
   switch (GST_MESSAGE_TYPE (msg)) {
 
+    case GST_MESSAGE_APPLICATION:
+      g_print ("Changing file\n");
+      change_file(si);
+      g_print("Unblocking the pad\n");
+      gst_pad_unblock (si->queuepad);
+      break;
+
     case GST_MESSAGE_EOS:
-      if (si->ignoreEOS) {
-        g_print ("Changing file\n");
-        si->ignoreEOS = FALSE;
-        change_file(si);
-        gst_pad_unblock (si->queuepad);
-      } else {
-        g_print ("End of stream\n");
-        g_main_loop_quit (si->loop);
-      }
+      g_print ("Caught end of stream, strange!\n");
+      g_main_loop_quit (si->loop);
       break;
 
     case GST_MESSAGE_ERROR: {
@@ -87,10 +88,23 @@ bus_call (GstBus     *bus,
   return TRUE;
 }
 
-GstElement *new_save_bin(gchar *filedir) {
+static GstPadProbeReturn ignore_eos (GstPad *pad, GstPadProbeInfo *info, 
+                                     gpointer data) {
+  GstBus *bus = (GstBus *) data;
+
+  if (GST_EVENT_EOS == GST_EVENT_TYPE(GST_PAD_PROBE_INFO_EVENT(info))) {
+    gst_bus_post(bus, gst_message_new_custom(GST_MESSAGE_APPLICATION, 
+                                             (GstObject *) pad, NULL));
+    return GST_PAD_PROBE_DROP;
+  }
+  return GST_PAD_PROBE_PASS;
+}
+
+GstElement *new_save_bin(gchar *filedir, GstBus *bus) {
   GstElement *bin, *mux, *filesink;
-  GstPad *pad;
+  GstPad *pad, *muxpad;
   gchar *filename;
+  gulong probeid;
 
   if (filedir) {
     filename = g_strdup_printf("%s/%"G_GINT64_FORMAT".mkv",filedir,g_get_real_time());
@@ -115,6 +129,20 @@ GstElement *new_save_bin(gchar *filedir) {
   g_object_set (G_OBJECT (mux), "min-index-interval", 
                                 (guint64) MATROSKA_MIN_INDEX_INTERVAL, NULL);
 
+  muxpad = gst_element_get_static_pad (mux, "src");
+  if (!muxpad) {
+    g_printerr("FATAL: Couldn't get the mux src pad\n");
+    /* FIXME: actually make this fatal */
+  }
+  probeid = gst_pad_add_probe (muxpad, GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM|
+                                       GST_PAD_PROBE_TYPE_BLOCK_DOWNSTREAM,
+                               (GstPadProbeCallback) ignore_eos, bus, NULL);
+  if (!probeid) {
+    g_printerr("FATAL: Couldn't set the probe on the mux src pad\n");
+    /* FIXME: actually make this fatal */
+  }
+  gst_object_unref (GST_OBJECT (muxpad));
+
   /* we set the input filename to the source element */
   g_print("Writing to %s\n", filename);
   g_object_set (G_OBJECT (filesink), "location", filename, NULL);
@@ -134,7 +162,7 @@ GstElement *new_save_bin(gchar *filedir) {
 void change_file (StreamInfo *si){
   gst_element_set_state (si->savebin, GST_STATE_NULL);
     gst_bin_remove(GST_BIN(si->pipeline), si->savebin);
-      si->savebin = new_save_bin(si->filedir);
+      si->savebin = new_save_bin(si->filedir, si->bus);
       gst_bin_add (GST_BIN (si->pipeline), si->savebin);
     gst_element_link (si->queue, si->savebin);
   gst_element_set_state (si->savebin, GST_STATE_PLAYING);
@@ -156,7 +184,6 @@ cb_have_data (GstPad          *pad,
   if (!(flags & GST_BUFFER_FLAG_DELTA_UNIT)) {
     g_print("Buffer is I-frame!\n");
     if (si->numframes >= MIN_FRAMES_PER_FILE) {
-      si->ignoreEOS = TRUE;
       si->numframes = 0;
       savebinpad = gst_element_get_static_pad (si->savebin, "video_sink");
       if (!savebinpad) {
@@ -182,8 +209,6 @@ int
 main (int   argc,
       char *argv[])
 {
-  GstBus *bus;
-  guint bus_watch_id;
   StreamInfo si;
 
   /* Initialisation */
@@ -202,15 +227,21 @@ main (int   argc,
     return -2;
   }
 
+
   /* Create elements */
   si.pipeline = gst_pipeline_new ("savefile");
   si.source   = gst_element_factory_make ("uridecodebin", "uridecodebin");
   si.queue  = gst_element_factory_make ("queue", "queue");
   si.queuepad = gst_element_get_static_pad (si.queue, "src");
-  si.savebin = new_save_bin(NULL);
+
+  /* create the bus */
+  si.bus = gst_pipeline_get_bus (GST_PIPELINE (si.pipeline));
+  si.bus_watch_id = gst_bus_add_watch (si.bus, bus_call, &si);
+  gst_object_unref (si.bus);
+
+  si.savebin = new_save_bin(NULL, si.bus);
   si.numframes = MIN_FRAMES_PER_FILE;
   si.filedir = argv[2];
-  si.ignoreEOS = FALSE;
   si.probeid = 0;
 
   if (!si.pipeline || !si.source || !si.queue || !si.queuepad || !si.savebin) {
@@ -225,11 +256,6 @@ main (int   argc,
   g_object_set (G_OBJECT (si.source), "uri", argv[1], NULL);
   g_signal_connect (si.source, "autoplug-continue", G_CALLBACK(uriplug), NULL);
   g_signal_connect (si.source, "pad-added", G_CALLBACK(padadd), si.queue);
-
-  /* we add a message handler */
-  bus = gst_pipeline_get_bus (GST_PIPELINE (si.pipeline));
-  bus_watch_id = gst_bus_add_watch (bus, bus_call, &si);
-  gst_object_unref (bus);
 
   /* we add all elements into the pipeline */
   gst_bin_add_many (GST_BIN (si.pipeline), si.source, si.queue, si.savebin, NULL);
@@ -257,7 +283,7 @@ main (int   argc,
   g_print ("Returned, stopping playback\n");
   gst_element_set_state (si.pipeline, GST_STATE_NULL);
   gst_object_unref (GST_OBJECT (si.pipeline));
-  g_source_remove (bus_watch_id);
+  g_source_remove (si.bus_watch_id);
   g_main_loop_unref (si.loop);
 
   return 0;

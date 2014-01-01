@@ -100,7 +100,7 @@ static GstPadProbeReturn ignore_eos (GstPad *pad, GstPadProbeInfo *info,
   return GST_PAD_PROBE_PASS;
 }
 
-GstElement *new_save_bin(gchar *filedir, GstBus *bus) {
+GstElement *new_save_bin(gchar *filedir, StreamInfo *si) {
   GstElement *bin, *mux, *filesink;
   GstPad *pad, *muxpad;
   gchar *filename;
@@ -136,7 +136,7 @@ GstElement *new_save_bin(gchar *filedir, GstBus *bus) {
   }
   probeid = gst_pad_add_probe (muxpad, GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM|
                                        GST_PAD_PROBE_TYPE_BLOCK_DOWNSTREAM,
-                               (GstPadProbeCallback) ignore_eos, bus, NULL);
+                               (GstPadProbeCallback) ignore_eos, si->bus, NULL);
   if (!probeid) {
     g_printerr("FATAL: Couldn't set the probe on the mux src pad\n");
     /* FIXME: actually make this fatal */
@@ -162,7 +162,7 @@ GstElement *new_save_bin(gchar *filedir, GstBus *bus) {
 void change_file (StreamInfo *si){
   gst_element_set_state (si->savebin, GST_STATE_NULL);
     gst_bin_remove(GST_BIN(si->pipeline), si->savebin);
-      si->savebin = new_save_bin(si->filedir, si->bus);
+      si->savebin = new_save_bin(si->filedir, si);
       gst_bin_add (GST_BIN (si->pipeline), si->savebin);
     gst_element_link (si->queue, si->savebin);
   gst_element_set_state (si->savebin, GST_STATE_PLAYING);
@@ -239,7 +239,7 @@ main (int   argc,
   si.bus_watch_id = gst_bus_add_watch (si.bus, bus_call, &si);
   gst_object_unref (si.bus);
 
-  si.savebin = new_save_bin(NULL, si.bus);
+  si.savebin = new_save_bin(NULL, &si);
   si.numframes = MIN_FRAMES_PER_FILE;
   si.filedir = argv[2];
   si.probeid = 0;

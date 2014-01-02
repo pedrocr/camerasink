@@ -242,6 +242,7 @@ main (int   argc,
   si.numframes = MIN_FRAMES_PER_FILE;
   si.filedir = argv[2];
   si.ignoreEOS = FALSE;
+  si.probeid = 0;
 
   if (!si.pipeline || !si.source || !si.queue || !si.queuepad || !si.savebin) {
     g_printerr ("One element could not be created. Exiting.\n");

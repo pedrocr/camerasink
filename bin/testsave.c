@@ -19,6 +19,8 @@ typedef struct {
   GstElement *queue;
   GstElement *savebin;
 
+  gulong      probeid;
+
   GstPad     *queuepad;
 
   gchar      *filedir;
@@ -27,6 +29,8 @@ typedef struct {
 } StreamInfo;
 
 void change_file (StreamInfo *si);
+void reset_probe (StreamInfo *si);
+static GstPadProbeReturn probe_data (GstPad *pad, GstPadProbeInfo *info, gpointer data);
 
 void padadd (GstElement *bin, GstPad *newpad, gpointer data) {
   GstElement *queue = (GstElement *) data;
@@ -60,7 +64,7 @@ bus_call (GstBus     *bus,
         g_print ("Changing file\n");
         change_file(si);
         g_print("Unblocking the pad\n");
-        gst_pad_unblock (si->queuepad);
+        reset_probe(si);
       } else {
         g_print ("Caught end of stream, strange!\n");
         g_main_loop_quit (si->loop);
@@ -140,11 +144,32 @@ void change_file (StreamInfo *si){
   gst_element_set_state (si->savebin, GST_STATE_PLAYING);
 }
 
-static GstPadProbeReturn
-cb_have_data (GstPad          *pad,
-              GstPadProbeInfo *info,
-              gpointer         data)
-{
+void reset_probe (StreamInfo *si) {
+  gulong probeid;
+  GstPad *pad;
+
+  /* Add a probe to react to I-frames at the output of the queue blocking it
+   and letting frames pile up if needed */
+  pad = gst_element_get_static_pad (si->queue, "src");
+  probeid = gst_pad_add_probe (pad, GST_PAD_PROBE_TYPE_BUFFER|
+                                    GST_PAD_PROBE_TYPE_BLOCK,
+                               (GstPadProbeCallback) probe_data, si, NULL);
+  if (!probeid) {
+    g_printerr("FATAL: Couldn't set the probe on queue src");
+    /* FIXME: Actually make this fatal */
+  }
+
+  if (si->probeid) {
+    gst_pad_remove_probe (pad, si->probeid);
+    g_print("Hoping to unblock it at this point but failing\n");
+    /* FIXME: this should make the pipeline run again but doesn't */
+  }
+
+  si->probeid = probeid;
+  gst_object_unref (pad);
+}
+
+static GstPadProbeReturn probe_data (GstPad *pad, GstPadProbeInfo *info, gpointer data) {
   GstBufferFlags flags;
   GstPad *savebinpad;
   StreamInfo *si = (StreamInfo *) data;
@@ -184,7 +209,6 @@ main (int   argc,
       char *argv[])
 {
   StreamInfo si;
-  gulong probeid;
 
   /* Initialisation */
   gst_init (&argc, &argv);
@@ -239,13 +263,7 @@ main (int   argc,
   /* Setup the data probe on queue element */
   /* Add a probe to react to I-frames at the output of the queue blocking it
  and letting frames pile up if needed */
-  probeid = gst_pad_add_probe (si.queuepad, GST_PAD_PROBE_TYPE_BUFFER|
-                                            GST_PAD_PROBE_TYPE_BLOCK,
-                               (GstPadProbeCallback) cb_have_data, &si, NULL);
-  if (!probeid) {
-    g_printerr("FATAL: Couldn't set the probe on the queue\n");
-    return -2;
-  }
+  reset_probe(&si);
 
   /* Set the pipeline to "playing" state*/
   gst_element_set_state (si.pipeline, GST_STATE_PLAYING);

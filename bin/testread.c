@@ -10,10 +10,14 @@ typedef struct {
   GstPad     *muxpad;
   GstElement *demux;
   GstElement *pipeline;
+  GstClockTime bufferoffset;
+  GstClockTime lastbuffertime;
 } StreamInfo;
 
 static GstPadProbeReturn source_event (GstPad *pad, GstPadProbeInfo *info, 
                                        gpointer data);
+static GstPadProbeReturn source_buffer (GstPad *pad, GstPadProbeInfo *info, 
+                                        gpointer data);
 
 void padadd (GstElement *demux, GstPad *newpad, gpointer data) {
   StreamInfo *si = (StreamInfo *) data;
@@ -32,6 +36,10 @@ void padadd (GstElement *demux, GstPad *newpad, gpointer data) {
   gst_pad_add_probe (newpad, GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM|
                           GST_PAD_PROBE_TYPE_BLOCK,
                      (GstPadProbeCallback) source_event, si, NULL);
+  /* Add a probe to adjust the frame timestamps */
+  gst_pad_add_probe (newpad, GST_PAD_PROBE_TYPE_BUFFER|
+                             GST_PAD_PROBE_TYPE_BLOCK,
+                     (GstPadProbeCallback) source_buffer, si, NULL);
 }
 
 static gboolean
@@ -114,6 +122,30 @@ source_event (GstPad          *pad,
     (si->filenum)++;
     if (si->filenum < si->numfiles) { /* If we're not past the last file */
       g_idle_add((GSourceFunc) change_file, si);
+      si->bufferoffset = si->lastbuffertime;
+      return GST_PAD_PROBE_DROP;
+    }
+  }
+
+  return GST_PAD_PROBE_PASS;
+}
+
+static GstPadProbeReturn
+source_buffer (GstPad          *pad,
+               GstPadProbeInfo *info,
+               gpointer         data)
+{
+  StreamInfo *si = (StreamInfo *) data;
+  si->lastbuffertime = GST_BUFFER_PTS(GST_PAD_PROBE_INFO_BUFFER (info));
+  GST_BUFFER_PTS(GST_PAD_PROBE_INFO_BUFFER (info)) += si->bufferoffset;
+ 
+  if (GST_EVENT_EOS == GST_EVENT_TYPE(GST_PAD_PROBE_INFO_EVENT (info))) {
+    g_print("Got EOS!\n");
+
+    (si->filenum)++;
+    if (si->filenum < si->numfiles) { /* If we're not past the last file */
+      g_idle_add((GSourceFunc) change_file, si);
+      si->bufferoffset = si->lastbuffertime;
       return GST_PAD_PROBE_DROP;
     }
   }
@@ -177,6 +209,7 @@ main (int   argc,
   si.demux = NULL;
   si.filesrc = NULL;
   si.muxpad = NULL;
+  si.bufferoffset = 0;
 
   /* Set up the pipeline */
 

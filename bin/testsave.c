@@ -1,11 +1,6 @@
 #include <gst/gst.h>
 #include <glib.h>
 
-/* String to use when saving */
-#define MATROSKA_APPNAME "camerasave"
-/* Nanoseconds between indexes */
-#define MATROSKA_MIN_INDEX_INTERVAL 1000000000
-/* Minimum frames before changing files */
 #define MIN_FRAMES_PER_FILE 500
 
 typedef struct {
@@ -113,11 +108,6 @@ GstElement *new_save_bin(gchar *filedir) {
 
   gst_bin_add_many (GST_BIN(bin), mux,filesink, NULL);
   gst_element_link_many (mux, filesink, NULL);
-
-  /* make well formatted matroska files */
-  g_object_set (G_OBJECT (mux), "writing-app", MATROSKA_APPNAME, NULL);
-  g_object_set (G_OBJECT (mux), "min-index-interval", 
-                                (guint64) MATROSKA_MIN_INDEX_INTERVAL, NULL);
 
   /* we set the input filename to the source element */
   g_print("Writing to %s\n", filename);

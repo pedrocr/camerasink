@@ -1,7 +1,7 @@
 #include <gst/gst.h>
 #include <glib.h>
 
-#define MIN_FRAMES_PER_FILE 500
+#define MIN_FRAMES_PER_FILE 200
 
 typedef struct {
   GstElement *pipeline;

@@ -29,6 +29,6 @@ class TestRoundtrip < Test::Unit::TestCase
     sh "diff #{inputfile}.raw #{outputfile}.raw > /dev/null", "Binary files differ"
 
     # Clean up at the end
-    # FileUtils.rm_rf testdir
+    FileUtils.rm_rf testdir
   end
 end

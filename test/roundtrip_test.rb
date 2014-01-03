@@ -7,7 +7,7 @@ class TestRoundtrip < Test::Unit::TestCase
     testdir = File.expand_path(TMPDIR+"/roundtrip_video/")
     inputfile = File.expand_path(testdir+"/input.mkv")
     outputdir = File.expand_path(testdir+"/splits/")
-    outputfile = File.expand_path(testdir+"/output.mkv")
+    outputfile = File.expand_path(testdir+"/output.mp4")
 
     # Clean up any previous tests
     FileUtils.rm_rf testdir
@@ -21,13 +21,14 @@ class TestRoundtrip < Test::Unit::TestCase
     sh "#{BINDIR}/testsave file://#{inputfile} #{outputdir} > /dev/null"
     sh "#{BINDIR}/testread #{outputfile} #{outputdir}/*.mkv > /dev/null"
     
+    # Get raw video from input and output files to be able to do binary comparison
     [inputfile,outputfile].each do |file|
-      sh "gst-launch-1.0 filesrc location=#{file} ! matroskademux ! h264parse ! filesink location=#{file}.raw > /dev/null"
+      sh "gst-launch-1.0 filesrc location=#{file} ! decodebin ! filesink location=#{file}.raw > /dev/null"
     end
 
     sh "diff #{inputfile}.raw #{outputfile}.raw > /dev/null", "Binary files differ"
 
     # Clean up at the end
-    FileUtils.rm_rf testdir
+    # FileUtils.rm_rf testdir
   end
 end

@@ -4,5 +4,6 @@ testserver
 .libs
 testread
 test.mkv
+test.mp4
 testcase_bug721289
 fixed_testcase_bug721289

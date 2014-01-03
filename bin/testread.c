@@ -12,11 +12,6 @@ typedef struct {
   GstElement *pipeline;
 } StreamInfo;
 
-/* String to use when saving */
-#define MATROSKA_APPNAME "camerasave"
-/* Nanoseconds between indexes */
-#define MATROSKA_MIN_INDEX_INTERVAL 1000000000
-
 static GstPadProbeReturn source_event (GstPad *pad, GstPadProbeInfo *info, 
                                        gpointer data);
 
@@ -103,7 +98,7 @@ gboolean change_file(StreamInfo *si) {
 }
 
 void usage () {
-  g_printerr ("Usage: testread <output file> <input file1> ... <input file n>\n");
+  g_printerr ("Usage: testread <output.mp4> <input1.mkv> ... <inputN.mkv>\n");
 }
 
 static GstPadProbeReturn
@@ -169,7 +164,7 @@ main (int   argc,
 
   /* Create elements */
   pipeline = gst_pipeline_new ("readfiles");
-  mux  = gst_element_factory_make ("matroskamux", "matroskamux");
+  mux  = gst_element_factory_make ("mp4mux", "mp4mux");
   sink = gst_element_factory_make ("filesink", "filesink");
 
   if (!pipeline || !mux || !sink) {
@@ -191,11 +186,6 @@ main (int   argc,
 
   /* we set the input filename to the source element */
   create_source(&si);
-
-  /* make well formatted matroska files */
-  g_object_set (G_OBJECT (mux), "writing-app", MATROSKA_APPNAME, NULL);
-  g_object_set (G_OBJECT (mux), "min-index-interval", 
-                                (guint64) MATROSKA_MIN_INDEX_INTERVAL, NULL);
 
   /* we add a message handler */
   bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));

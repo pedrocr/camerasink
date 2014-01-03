@@ -21,6 +21,8 @@ typedef struct {
   gchar      *filedir;
   guint       numframes;
   gboolean    ignoreEOS;
+
+  GstClockTime bufferoffset;
 } StreamInfo;
 
 void change_file (StreamInfo *si);
@@ -181,10 +183,19 @@ static GstPadProbeReturn probe_data (GstPad *pad, GstPadProbeInfo *info, gpointe
       si->ignoreEOS = TRUE;
       gst_pad_send_event(savebinpad, gst_event_new_eos());
       gst_object_unref (GST_OBJECT (savebinpad));
+
+      /* FIXME: this is what I'd like to do but negative offsets don't work
+      gst_pad_set_offset(pad, -GST_BUFFER_PTS(GST_PAD_PROBE_INFO_BUFFER (info)));
+      */
+      
+      /* We don't need to apply the offset in this branch because the probe will 
+         be running again after the swap and using the other branch */
+      si->bufferoffset = GST_BUFFER_PTS(GST_PAD_PROBE_INFO_BUFFER (info));
       return GST_PAD_PROBE_OK;
     }
   }
   
+  GST_BUFFER_PTS(GST_PAD_PROBE_INFO_BUFFER (info)) -= si->bufferoffset;
   g_print("Processing buffer #%d of file\n", si->numframes);
   return GST_PAD_PROBE_PASS;
 }
@@ -233,6 +244,7 @@ main (int   argc,
   si.filedir = argv[2];
   si.ignoreEOS = FALSE;
   si.probeid = 0;
+  si.bufferoffset = 0;
 
   if (!si.pipeline || !si.source || !si.queue || !si.queuepad || !si.savebin) {
     g_printerr ("One element could not be created. Exiting.\n");

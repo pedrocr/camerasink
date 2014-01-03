@@ -136,20 +136,10 @@ source_buffer (GstPad          *pad,
                gpointer         data)
 {
   StreamInfo *si = (StreamInfo *) data;
-  si->lastbuffertime = GST_BUFFER_PTS(GST_PAD_PROBE_INFO_BUFFER (info));
+
   GST_BUFFER_PTS(GST_PAD_PROBE_INFO_BUFFER (info)) += si->bufferoffset;
+  si->lastbuffertime = GST_BUFFER_PTS(GST_PAD_PROBE_INFO_BUFFER (info));
  
-  if (GST_EVENT_EOS == GST_EVENT_TYPE(GST_PAD_PROBE_INFO_EVENT (info))) {
-    g_print("Got EOS!\n");
-
-    (si->filenum)++;
-    if (si->filenum < si->numfiles) { /* If we're not past the last file */
-      g_idle_add((GSourceFunc) change_file, si);
-      si->bufferoffset = si->lastbuffertime;
-      return GST_PAD_PROBE_DROP;
-    }
-  }
-
   return GST_PAD_PROBE_PASS;
 }
 

@@ -8,11 +8,11 @@ The media handling stuff is written in C with gstreamer. Eventually the "porcela
 
 ## Building
 
-Running "rake" with no arguments should both build the C code and run the test suite.
+Running "rake" with no arguments should both build the C code and run the test suite. Because of a few bugs found while writing this only the current gstreamer master branch will run this properly. When it's released gstreamer 1.2.3 should also do.
 
 ## Usage
 
-Right now there are three proof of concept programs. "testserver" is just a simplified version of "test-video" from gst-rtsp-server you can run it without arguments
+Right now there are three proof of concept programs. "testserver" is just a simplified version of "test-video" from gst-rtsp-server. Run it without arguments:
 
     $ ./bin/testserver 
     stream ready at rtsp://127.0.0.1:8554/test
@@ -24,4 +24,8 @@ Right now there are three proof of concept programs. "testserver" is just a simp
 "testread" reads from a set of .mkv files and constructs a single .mp4 file with all the streams concatenated. It again generates a file that can be read in any media player and/or the HTML5 <video> tag. Run it as:
 
     $ ./bin/testsave somefile.mp4 someoutputdir
+
+## Author
+
+Pedro Côrte-Real <pedro@pedrocr.net>
     

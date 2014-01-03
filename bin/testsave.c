@@ -97,8 +97,8 @@ GstElement *new_save_bin(gchar *filedir) {
     filename = "/dev/null";
   }  
 
-  bin      = gst_bin_new ("savebin");
-  mux   = gst_element_factory_make ("matroskamux",  "matroskamux");
+  bin = gst_bin_new ("savebin");
+  mux = gst_element_factory_make ("matroskamux",  "matroskamux");
   filesink = gst_element_factory_make ("filesink", "filesink");
 
   if (!bin || !mux || !filesink) {

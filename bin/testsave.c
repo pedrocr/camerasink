@@ -1,6 +1,8 @@
 #include <gst/gst.h>
 #include <glib.h>
 
+#include <common.h>
+
 #define MIN_FRAMES_PER_FILE 200
 
 typedef struct {
@@ -33,11 +35,8 @@ void padadd (GstElement *bin, GstPad *newpad, gpointer data) {
   GstElement *queue = (GstElement *) data;
   GstPad *queue_pad;
 
-  queue_pad = gst_element_get_static_pad (queue, "sink");
-  if (!queue_pad) {
-    g_printerr ("Couldn't get pad from queue to connect to uridecodebin\n");
-    return;
-  }
+  queue_pad = my_gst_element_get_static_pad (queue, "sink");
+
   gst_pad_link(newpad,queue_pad);
   gst_object_unref (GST_OBJECT (queue_pad));
 }
@@ -99,14 +98,9 @@ GstElement *new_save_bin(gchar *filedir) {
     filename = "/dev/null";
   }  
 
-  bin = gst_bin_new ("savebin");
-  mux = gst_element_factory_make ("matroskamux",  "matroskamux");
-  filesink = gst_element_factory_make ("filesink", "filesink");
-
-  if (!bin || !mux || !filesink) {
-    g_printerr ("One element could not be created. Exiting.\n");
-    return NULL;
-  }
+  bin = my_gst_bin_new ("savebin");
+  mux = my_gst_element_factory_make ("matroskamux",  "matroskamux");
+  filesink = my_gst_element_factory_make ("filesink", "filesink");
 
   gst_bin_add_many (GST_BIN(bin), mux,filesink, NULL);
   gst_element_link_many (mux, filesink, NULL);
@@ -116,11 +110,8 @@ GstElement *new_save_bin(gchar *filedir) {
   g_object_set (G_OBJECT (filesink), "location", filename, NULL);
 
   /* add video ghostpad */
-  pad = gst_element_get_request_pad (mux, "video_%u");
-  if (!pad) {
-    g_printerr ("Couldn't get the video pad for mux\n");
-    return NULL;
-  }
+  pad = my_gst_element_get_request_pad (mux, "video_%u");
+
   gst_element_add_pad (bin, gst_ghost_pad_new ("video_sink", pad));
   gst_object_unref (GST_OBJECT (pad));
 
@@ -146,15 +137,10 @@ void reset_probe (StreamInfo *si) {
   probeid = gst_pad_add_probe (pad, GST_PAD_PROBE_TYPE_BUFFER|
                                     GST_PAD_PROBE_TYPE_BLOCK,
                                (GstPadProbeCallback) probe_data, si, NULL);
-  if (!probeid) {
-    g_printerr("FATAL: Couldn't set the probe on queue src");
-    /* FIXME: Actually make this fatal */
-  }
+  exit_if_true(!probeid, "Couldn't set the probe on queue src");
 
   if (si->probeid) {
     gst_pad_remove_probe (pad, si->probeid);
-    g_print("Hoping to unblock it at this point but failing\n");
-    /* FIXME: this should make the pipeline run again but doesn't */
   }
 
   si->probeid = probeid;
@@ -174,20 +160,12 @@ static GstPadProbeReturn probe_data (GstPad *pad, GstPadProbeInfo *info, gpointe
     g_print("Buffer is I-frame!\n");
     if (si->numframes >= MIN_FRAMES_PER_FILE) {
       si->numframes = 0;
-      savebinpad = gst_element_get_static_pad (si->savebin, "video_sink");
-      if (!savebinpad) {
-        g_printerr ("FATAL: Couldn't get the video pad for savebin\n");
-        /* FIXME: Actually make this fatal */
-      }
+      savebinpad = my_gst_element_get_static_pad (si->savebin, "video_sink");
       g_print("Posting EOS\n");
       si->ignoreEOS = TRUE;
       gst_pad_send_event(savebinpad, gst_event_new_eos());
       gst_object_unref (GST_OBJECT (savebinpad));
-
-      /* FIXME: this is what I'd like to do but negative offsets don't work
-      gst_pad_set_offset(pad, -GST_BUFFER_PTS(GST_PAD_PROBE_INFO_BUFFER (info)));
-      */
-      
+     
       /* We don't need to apply the offset in this branch because the probe will 
          be running again after the swap and using the other branch */
       si->bufferoffset = GST_BUFFER_PTS(GST_PAD_PROBE_INFO_BUFFER (info));
@@ -229,10 +207,10 @@ main (int   argc,
 
 
   /* Create elements */
-  si.pipeline = gst_pipeline_new ("savefile");
-  si.source   = gst_element_factory_make ("uridecodebin", "uridecodebin");
-  si.queue  = gst_element_factory_make ("queue", "queue");
-  si.queuepad = gst_element_get_static_pad (si.queue, "src");
+  si.pipeline = my_gst_pipeline_new ("savefile");
+  si.source   = my_gst_element_factory_make ("uridecodebin", "uridecodebin");
+  si.queue  = my_gst_element_factory_make ("queue", "queue");
+  si.queuepad = my_gst_element_get_static_pad (si.queue, "src");
 
   /* create the bus */
   si.bus = gst_pipeline_get_bus (GST_PIPELINE (si.pipeline));
@@ -240,16 +218,12 @@ main (int   argc,
   gst_object_unref (si.bus);
 
   si.savebin = new_save_bin(NULL);
+  exit_if_true(!si.savebin, "Couldn't create savebin");
   si.numframes = MIN_FRAMES_PER_FILE;
   si.filedir = argv[2];
   si.ignoreEOS = FALSE;
   si.probeid = 0;
   si.bufferoffset = 0;
-
-  if (!si.pipeline || !si.source || !si.queue || !si.queuepad || !si.savebin) {
-    g_printerr ("One element could not be created. Exiting.\n");
-    return -1;
-  }
 
   /* Set up the pipeline */
 

@@ -1,6 +1,3 @@
-#include <gst/gst.h>
-#include <glib.h>
-
 #include <common.h>
 
 #define MIN_FRAMES_PER_FILE 200

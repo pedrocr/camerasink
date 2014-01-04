@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <glib.h>
 #include <gst/gst.h>
 
 void exit_if_true(gboolean condition, gchar *message) {

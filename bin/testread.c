@@ -1,5 +1,4 @@
-#include <gst/gst.h>
-#include <glib.h>
+#include <common.h>
 
 typedef struct {
   guint       numfiles;
@@ -23,12 +22,7 @@ void padadd (GstElement *demux, GstPad *newpad, gpointer data) {
   StreamInfo *si = (StreamInfo *) data;
   
   if (!si->muxpad) {
-    si->muxpad = gst_element_get_request_pad (si->mux, "video_0");
-  }
-  if (!si->muxpad) {
-    g_printerr ("FATAL: Couldn't get pad from matroskamux to connect to matroskademux\n");
-    /* FIXME: This should actually be fatal */
-    return;
+    si->muxpad = my_gst_element_get_request_pad (si->mux, "video_0");
   }
   gst_pad_link(newpad,si->muxpad);
 
@@ -79,12 +73,8 @@ bus_call (GstBus     *bus,
 void create_source(StreamInfo *si) {
   gchar *filename = si->filenames[si->filenum];
 
-  si->filesrc = gst_element_factory_make ("filesrc", "filesrc");
-  si->demux  = gst_element_factory_make ("matroskademux", "matroskademux");
-  if (!si->filesrc || !si->demux) {
-    g_printerr("FATAL: Couldn't create filesrc or matroskademux");
-    /* FIXME: we need to actually fail here */
-  }
+  si->filesrc = my_gst_element_factory_make ("filesrc", "filesrc");
+  si->demux  = my_gst_element_factory_make ("matroskademux", "matroskademux");
   /* Connect the video pad of the demux when it shows up */
   g_signal_connect (si->demux, "pad-added", G_CALLBACK(padadd), si);
   gst_bin_add_many (GST_BIN (si->pipeline), si->demux, si->filesrc, NULL);
@@ -185,14 +175,9 @@ main (int   argc,
   }
 
   /* Create elements */
-  pipeline = gst_pipeline_new ("readfiles");
-  mux  = gst_element_factory_make ("mp4mux", "mp4mux");
-  sink = gst_element_factory_make ("filesink", "filesink");
-
-  if (!pipeline || !mux || !sink) {
-    g_printerr ("One element could not be created. Exiting.\n");
-    return -1;
-  }
+  pipeline = my_gst_pipeline_new ("readfiles");
+  mux  = my_gst_element_factory_make ("mp4mux", "mp4mux");
+  sink = my_gst_element_factory_make ("filesink", "filesink");
 
   si.pipeline = pipeline;
   si.mux = mux;

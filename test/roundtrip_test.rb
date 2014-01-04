@@ -18,8 +18,8 @@ class TestRoundtrip < Test::Unit::TestCase
 
     sh "gst-launch-1.0 videotestsrc num-buffers=#{NUMBUFFERS} ! x264enc ! matroskamux ! filesink location=#{inputfile} > /dev/null"
 
-    sh "#{BINDIR}/testsave file://#{inputfile} #{outputdir} > /dev/null"
-    sh "#{BINDIR}/testread #{outputfile} #{outputdir}/*.mkv > /dev/null"
+    sh "#{BINDIR}/camerasave file://#{inputfile} #{outputdir} > /dev/null"
+    sh "#{BINDIR}/filejoin #{outputfile} #{outputdir}/*.mkv > /dev/null"
     
     # Get raw video from input and output files to be able to do binary comparison
     [inputfile,outputfile].each do |file|

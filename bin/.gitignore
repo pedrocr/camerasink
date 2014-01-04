@@ -1,9 +1,7 @@
-testsave
+camerasave
 testoutput
 testserver
 .libs
-testread
+filejoin
 test.mkv
 test.mp4
-testcase_bug721289
-fixed_testcase_bug721289

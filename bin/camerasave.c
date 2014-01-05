@@ -169,12 +169,12 @@ static GstPadProbeReturn probe_data (GstPad *pad, GstPadProbeInfo *info, gpointe
      
       /* We don't need to apply the offset in this branch because the probe will 
          be running again after the swap and using the other branch */
-      si->bufferoffset = GST_BUFFER_PTS(GST_PAD_PROBE_INFO_BUFFER (info));
+      si->bufferoffset = GST_BUFFER_PTS(buffer);
       return GST_PAD_PROBE_OK;
     }
   }
   
-  GST_BUFFER_PTS(GST_PAD_PROBE_INFO_BUFFER (info)) -= si->bufferoffset;
+  GST_BUFFER_PTS(buffer) -= si->bufferoffset;
   g_print("Processing buffer #%d of file\n", si->numframes);
   return GST_PAD_PROBE_PASS;
 }

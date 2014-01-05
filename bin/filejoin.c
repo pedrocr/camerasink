@@ -127,6 +127,7 @@ source_buffer (GstPad          *pad,
 {
   StreamInfo *si = (StreamInfo *) data;
 
+  GST_PAD_PROBE_INFO_DATA(info) = gst_buffer_make_writable(GST_PAD_PROBE_INFO_BUFFER(info));
   GST_BUFFER_PTS(GST_PAD_PROBE_INFO_BUFFER (info)) += si->bufferoffset;
   si->lastbuffertime = GST_BUFFER_PTS(GST_PAD_PROBE_INFO_BUFFER (info));
  

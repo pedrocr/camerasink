@@ -147,11 +147,15 @@ void reset_probe (StreamInfo *si) {
 static GstPadProbeReturn probe_data (GstPad *pad, GstPadProbeInfo *info, gpointer data) {
   GstBufferFlags flags;
   GstPad *savebinpad;
+  GstBuffer *buffer;
   StreamInfo *si = (StreamInfo *) data;
 
   (si->numframes)++;
 
-  flags = GST_BUFFER_FLAGS(GST_PAD_PROBE_INFO_BUFFER (info));
+  buffer = GST_PAD_PROBE_INFO_BUFFER(info);
+  buffer = gst_buffer_make_writable(buffer);
+  flags = GST_BUFFER_FLAGS(buffer);
+  GST_PAD_PROBE_INFO_DATA(info) = buffer;
 
   if (!(flags & GST_BUFFER_FLAG_DELTA_UNIT)) {
     g_print("Buffer is I-frame!\n");

@@ -126,10 +126,12 @@ source_buffer (GstPad          *pad,
                gpointer         data)
 {
   StreamInfo *si = (StreamInfo *) data;
+  GstBuffer *buffer = gst_buffer_make_writable(GST_PAD_PROBE_INFO_BUFFER(info));
 
-  GST_PAD_PROBE_INFO_DATA(info) = gst_buffer_make_writable(GST_PAD_PROBE_INFO_BUFFER(info));
+  GST_PAD_PROBE_INFO_DATA(info) = buffer;
+
   GST_BUFFER_PTS(GST_PAD_PROBE_INFO_BUFFER (info)) += si->bufferoffset;
-  si->lastbuffertime = GST_BUFFER_PTS(GST_PAD_PROBE_INFO_BUFFER (info));
+  si->lastbuffertime = GST_BUFFER_PTS(buffer)+GST_BUFFER_DURATION(buffer);
  
   return GST_PAD_PROBE_PASS;
 }

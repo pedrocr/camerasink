@@ -3,11 +3,11 @@ require File.expand_path('test_helper.rb', File.dirname(__FILE__))
 class TestRoundtrip < Test::Unit::TestCase
   NUMBUFFERS = 1000
 
-  def test_roundtrip_video
-    testdir = File.expand_path(TMPDIR+"/roundtrip_video/")
+  def roundtrip_video(encoder)
+    testdir = File.expand_path(TMPDIR+"/roundtrip_video_#{encoder}/")
     inputfile = File.expand_path(testdir+"/input.mkv")
     outputdir = File.expand_path(testdir+"/splits/")
-    outputfile = File.expand_path(testdir+"/output.mp4")
+    outputfile = File.expand_path(testdir+"/output.mkv")
 
     # Clean up any previous tests
     FileUtils.rm_rf testdir
@@ -16,7 +16,7 @@ class TestRoundtrip < Test::Unit::TestCase
     FileUtils.mkdir_p testdir
     FileUtils.mkdir_p outputdir
 
-    sh "gst-launch-1.0 videotestsrc num-buffers=#{NUMBUFFERS} ! x264enc ! matroskamux ! filesink location=#{inputfile} > /dev/null"
+    sh "gst-launch-1.0 videotestsrc num-buffers=#{NUMBUFFERS} ! #{encoder} ! matroskamux ! filesink location=#{inputfile} > /dev/null"
 
     sh "#{BINDIR}/camerasave file://#{inputfile} #{outputdir} > /dev/null"
     sh "#{BINDIR}/filejoin #{outputfile} #{outputdir}/*.mkv > /dev/null"
@@ -30,5 +30,13 @@ class TestRoundtrip < Test::Unit::TestCase
 
     # Clean up at the end
     FileUtils.rm_rf testdir
+  end
+
+  def test_roundtrip_h264
+    roundtrip_video("x264enc")
+  end
+
+  def test_roundtrip_mjpeg
+    roundtrip_video("jpegenc")
   end
 end

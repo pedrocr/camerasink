@@ -21,9 +21,9 @@ Right now there are three proof of concept programs. **testserver** is just a si
 
     $ ./bin/camerasave rtsp://127.0.0.1:8554/test someoutputdir
 
-**filejoin** reads from a set of .mkv files and constructs a single .mp4 file with all the streams concatenated. It again generates a file that can be read in any media player and/or the HTML5 <video> tag. Run it as:
+**filejoin** reads from a set of .mkv files and constructs a single .mkv file with all the streams concatenated. It again generates a file that can be read in any media player. Run it as:
 
-    $ ./bin/filejoin somefile.mp4 someoutputdir
+    $ ./bin/filejoin somefile.mkv someoutputdir
 
 ## Author
 

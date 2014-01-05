@@ -179,7 +179,7 @@ main (int   argc,
 
   /* Create elements */
   pipeline = my_gst_pipeline_new ("readfiles");
-  mux  = my_gst_element_factory_make ("mp4mux", "mp4mux");
+  mux  = my_gst_element_factory_make ("matroskamux", "matroskamux");
   sink = my_gst_element_factory_make ("filesink", "filesink");
 
   si.pipeline = pipeline;

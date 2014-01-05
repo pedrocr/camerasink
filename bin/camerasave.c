@@ -39,8 +39,10 @@ void padadd (GstElement *bin, GstPad *newpad, gpointer data) {
 }
 
 gboolean uriplug (GstElement *bin, GstPad *pad, GstCaps *caps, gpointer ud) {
-  return !gst_caps_is_subset(caps, 
-                             gst_caps_from_string ("video/x-h264, parsed=true"));
+  return !(
+    gst_caps_is_subset(caps, gst_caps_from_string ("video/x-h264, parsed=true")) ||
+    gst_caps_is_subset(caps, gst_caps_from_string ("image/jpeg"))
+  );
 }
 
 static gboolean

@@ -1,5 +1,5 @@
 #include <common.h>
-#include <gio/gio.h>
+#include <libsoup/soup.h>
 
 #define MIN_FRAMES_PER_FILE 200
 #define LISTEN_ADDRESS "127.0.0.1"
@@ -184,52 +184,16 @@ static GstPadProbeReturn probe_data (GstPad *pad, GstPadProbeInfo *info, gpointe
   return GST_PAD_PROBE_PASS;
 }
 
-gboolean
-network_read(GIOChannel *source,
-             GIOCondition cond,
-             gpointer data)
+static void
+new_connection (SoupServer        *server,
+                SoupMessage       *msg, 
+                const char        *path,
+                GHashTable        *query,
+                SoupClientContext *client,
+                gpointer           user_data)
 {
-  GString *s = g_string_new(NULL);
-  GError *error = NULL;
-  GIOStatus ret = g_io_channel_read_line_string(source, s, NULL, &error);
-
-  if (ret == G_IO_STATUS_ERROR) {
-    //g_error ("Error reading: %s\n", error->message);
-    g_warning ("Error reading: %s\n", error->message);
-    // Drop last reference on connection
-    g_object_unref (data);
-    // Remove the event source
-    return FALSE;
-  }
-  else {
-    g_print("Got: %s\n", s->str);
-  }
-
-  if (ret == G_IO_STATUS_EOF) {
-    return FALSE;
-  }
-  return TRUE;
-}
-
-gboolean
-new_connection(GSocketService *service,
-              GSocketConnection *connection,
-              GObject *source_object,
-              gpointer user_data)
-{
-  GSocketAddress *sockaddr = g_socket_connection_get_remote_address(connection, NULL);
-  GInetAddress *addr = g_inet_socket_address_get_address(G_INET_SOCKET_ADDRESS(sockaddr));
-  guint16 port = g_inet_socket_address_get_port(G_INET_SOCKET_ADDRESS(sockaddr));
-  
-  g_print("New Connection from %s:%d\n", g_inet_address_to_string(addr), port);
-  g_object_ref (connection);
-
-  GSocket *socket = g_socket_connection_get_socket(connection);
-
-  gint fd = g_socket_get_fd(socket);
-  GIOChannel *channel = g_io_channel_unix_new(fd);
-  g_io_add_watch(channel, G_IO_IN, (GIOFunc) network_read, NULL);
-  return TRUE;
+    g_print("Got new connection!\n");
+    soup_message_set_status (msg, SOUP_STATUS_NOT_IMPLEMENTED);
 }
 
 
@@ -242,6 +206,7 @@ main (int   argc,
       char *argv[])
 {
   StreamInfo si;
+  SoupServer *httpserver;
 
   /* Initialisation */
   gst_init (&argc, &argv);
@@ -296,23 +261,15 @@ main (int   argc,
  and letting frames pile up if needed */
   reset_probe(&si);
 
-  g_type_init();
-  GSocketService *service = g_socket_service_new();
-  GInetAddress *address = g_inet_address_new_from_string(LISTEN_ADDRESS);
-  GSocketAddress *socket_address = g_inet_socket_address_new(address, LISTEN_PORT);
-  g_socket_listener_add_address(G_SOCKET_LISTENER(service), socket_address, 
-                                G_SOCKET_TYPE_STREAM,G_SOCKET_PROTOCOL_TCP, 
-                                NULL, NULL, NULL);
+  httpserver = soup_server_new("port", (guint) LISTEN_PORT,
+                               "interface", soup_address_new(LISTEN_ADDRESS,LISTEN_PORT),
+                               NULL);
+  soup_server_add_handler (httpserver, "/mjpeg", new_connection, &si, NULL);
 
-  g_object_unref(socket_address);
-  g_object_unref(address);
-  g_socket_service_start(service);
-
-  g_signal_connect(service, "incoming", G_CALLBACK(new_connection), NULL);
   g_print("Listening on http://%s:%d/\n", LISTEN_ADDRESS, LISTEN_PORT);
 
   /* Set the pipeline to "playing" state*/
-  gst_element_set_state (si.pipeline, GST_STATE_PLAYING);
+  //gst_element_set_state (si.pipeline, GST_STATE_PLAYING);
 
   /* Iterate */
   g_print ("Running...\n");

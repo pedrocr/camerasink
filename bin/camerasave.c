@@ -261,9 +261,7 @@ main (int   argc,
  and letting frames pile up if needed */
   reset_probe(&si);
 
-  httpserver = soup_server_new("port", (guint) LISTEN_PORT,
-                               "interface", soup_address_new(LISTEN_ADDRESS,LISTEN_PORT),
-                               NULL);
+  httpserver = soup_server_new(SOUP_SERVER_PORT, (guint) LISTEN_PORT, NULL);
   soup_server_add_handler (httpserver, "/mjpeg", new_connection, &si, NULL);
 
   g_print("Listening on http://%s:%d/\n", LISTEN_ADDRESS, LISTEN_PORT);

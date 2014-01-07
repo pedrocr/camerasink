@@ -2,8 +2,9 @@
 #include <libsoup/soup.h>
 
 #define MIN_FRAMES_PER_FILE 200
-#define LISTEN_ADDRESS "127.0.0.1"
-#define LISTEN_PORT 4000
+#define HTTP_LISTEN_ADDRESS "127.0.0.1"
+#define HTTP_LISTEN_PORT 4000
+#define HTTP_SERVER_NAME "camerasave"
 
 typedef struct {
   GstElement *pipeline;
@@ -207,6 +208,7 @@ main (int   argc,
 {
   StreamInfo si;
   SoupServer *httpserver;
+  SoupAddress *httpaddress;
 
   /* Initialisation */
   gst_init (&argc, &argv);
@@ -261,13 +263,19 @@ main (int   argc,
  and letting frames pile up if needed */
   reset_probe(&si);
 
-  httpserver = soup_server_new(SOUP_SERVER_PORT, (guint) LISTEN_PORT, NULL);
+  httpaddress = soup_address_new(HTTP_LISTEN_ADDRESS, HTTP_LISTEN_PORT);
+  if (SOUP_STATUS_OK != soup_address_resolve_sync(httpaddress, NULL)) {
+    g_printerr("FATAL: Can't resolve %s:%d\n", HTTP_LISTEN_ADDRESS, HTTP_LISTEN_PORT);
+  }
+  httpserver = soup_server_new("server-header", HTTP_SERVER_NAME,
+                               "interface", httpaddress,
+                               NULL);
   soup_server_add_handler (httpserver, "/mjpeg", new_connection, &si, NULL);
   soup_server_run_async (httpserver);
-  g_print("Listening on http://%s:%d/\n", LISTEN_ADDRESS, LISTEN_PORT);
+  g_print("Listening on http://%s:%d/\n", HTTP_LISTEN_ADDRESS, HTTP_LISTEN_PORT);
 
   /* Set the pipeline to "playing" state*/
-  //gst_element_set_state (si.pipeline, GST_STATE_PLAYING);
+  gst_element_set_state (si.pipeline, GST_STATE_PLAYING);
 
   /* Iterate */
   g_print ("Running...\n");

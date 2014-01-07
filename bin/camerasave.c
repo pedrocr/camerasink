@@ -263,7 +263,7 @@ main (int   argc,
 
   httpserver = soup_server_new(SOUP_SERVER_PORT, (guint) LISTEN_PORT, NULL);
   soup_server_add_handler (httpserver, "/mjpeg", new_connection, &si, NULL);
-
+  soup_server_run_async (httpserver);
   g_print("Listening on http://%s:%d/\n", LISTEN_ADDRESS, LISTEN_PORT);
 
   /* Set the pipeline to "playing" state*/

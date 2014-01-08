@@ -200,7 +200,7 @@ new_connection (SoupServer        *server,
     return;
   }
 
-
+  soup_message_headers_append(msg->response_headers, "content-type", "image/jpeg");
   soup_message_set_status (msg, SOUP_STATUS_OK);
 }
 

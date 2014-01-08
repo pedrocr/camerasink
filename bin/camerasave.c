@@ -271,12 +271,14 @@ main (int   argc,
   reset_probe(&si);
 
   httpaddress = soup_address_new(HTTP_LISTEN_ADDRESS, HTTP_LISTEN_PORT);
+  exit_if_true(!httpaddress, "Couldn't create libsoup httpaddress\n");
   if (SOUP_STATUS_OK != soup_address_resolve_sync(httpaddress, NULL)) {
     g_printerr("FATAL: Can't resolve %s:%d\n", HTTP_LISTEN_ADDRESS, HTTP_LISTEN_PORT);
   }
   httpserver = soup_server_new("server-header", HTTP_SERVER_NAME,
                                "interface", httpaddress,
                                NULL);
+  exit_if_true(!httpserver, "Couldn't create libsoup httpserver\n");
   soup_server_add_handler (httpserver, "/mjpeg", new_connection, &si, NULL);
   soup_server_run_async (httpserver);
   g_print("Listening on http://%s:%d/\n", HTTP_LISTEN_ADDRESS, HTTP_LISTEN_PORT);

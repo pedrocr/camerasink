@@ -195,6 +195,11 @@ new_connection (SoupServer        *server,
 {
   g_print ("Got request: %s %s HTTP/1.%d\n", msg->method, path,
                                              soup_message_get_http_version (msg));
+  if (msg->method != SOUP_METHOD_GET) {
+    soup_message_set_status (msg, SOUP_STATUS_NOT_IMPLEMENTED);
+    return;
+  }
+
 
   soup_message_set_status (msg, SOUP_STATUS_OK);
 }

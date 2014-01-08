@@ -193,8 +193,10 @@ new_connection (SoupServer        *server,
                 SoupClientContext *client,
                 gpointer           user_data)
 {
-    g_print("Got new connection!\n");
-    soup_message_set_status (msg, SOUP_STATUS_NOT_IMPLEMENTED);
+  g_print ("Got request: %s %s HTTP/1.%d\n", msg->method, path,
+                                             soup_message_get_http_version (msg));
+
+  soup_message_set_status (msg, SOUP_STATUS_OK);
 }
 
 

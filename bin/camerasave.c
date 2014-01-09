@@ -14,6 +14,7 @@ typedef struct {
   gulong      bus_watch_id;
 
   GstElement *source;
+  GstElement *tee;
   GstElement *queue;
   GstElement *savebin;
 
@@ -33,13 +34,13 @@ void reset_probe (StreamInfo *si);
 static GstPadProbeReturn probe_data (GstPad *pad, GstPadProbeInfo *info, gpointer data);
 
 void padadd (GstElement *bin, GstPad *newpad, gpointer data) {
-  GstElement *queue = (GstElement *) data;
-  GstPad *queue_pad;
+  GstElement *tee = (GstElement *) data;
+  GstPad *tee_pad;
 
-  queue_pad = my_gst_element_get_static_pad (queue, "sink");
+  tee_pad = my_gst_element_get_static_pad (tee, "sink");
 
-  gst_pad_link(newpad,queue_pad);
-  gst_object_unref (GST_OBJECT (queue_pad));
+  gst_pad_link(newpad,tee_pad);
+  gst_object_unref (GST_OBJECT (tee_pad));
 }
 
 gboolean uriplug (GstElement *bin, GstPad *pad, GstCaps *caps, gpointer ud) {
@@ -241,6 +242,7 @@ main (int   argc,
   /* Create elements */
   si.pipeline = my_gst_pipeline_new ("savefile");
   si.source   = my_gst_element_factory_make ("uridecodebin", "uridecodebin");
+  si.tee = my_gst_element_factory_make ("tee", "tee");
   si.queue  = my_gst_element_factory_make ("queue", "queue");
   si.queuepad = my_gst_element_get_static_pad (si.queue, "src");
 
@@ -263,11 +265,11 @@ main (int   argc,
   g_print("Reading from %s\n", argv[1]);
   g_object_set (G_OBJECT (si.source), "uri", argv[1], NULL);
   g_signal_connect (si.source, "autoplug-continue", G_CALLBACK(uriplug), NULL);
-  g_signal_connect (si.source, "pad-added", G_CALLBACK(padadd), si.queue);
+  g_signal_connect (si.source, "pad-added", G_CALLBACK(padadd), si.tee);
 
   /* we add all elements into the pipeline */
-  gst_bin_add_many (GST_BIN (si.pipeline), si.source, si.queue, si.savebin, NULL);
-  gst_element_link_many (si.queue, si.savebin,NULL);
+  gst_bin_add_many (GST_BIN (si.pipeline), si.source, si.tee, si.queue, si.savebin, NULL);
+  gst_element_link_many (si.tee, si.queue, si.savebin,NULL);
 
   /* Setup the data probe on queue element */
   /* Add a probe to react to I-frames at the output of the queue blocking it

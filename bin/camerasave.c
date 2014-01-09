@@ -201,14 +201,16 @@ new_connection (SoupServer        *server,
     return;
   }
 
+  soup_message_headers_set_encoding (msg->response_headers, SOUP_ENCODING_CHUNKED);
+
   soup_message_headers_append(msg->response_headers, "Content-Type", "image/jpeg");
   soup_message_headers_append(msg->response_headers, "Pragma", "no-cache");
   soup_message_headers_append(msg->response_headers, "Cache-Control", "no-cache, private");
   soup_message_headers_append(msg->response_headers, "Max-Age", "0");
   soup_message_headers_append(msg->response_headers, "Keep-Alive", "timeout=5, max=99");
   soup_message_set_status (msg, SOUP_STATUS_OK);
+  soup_server_pause_message(server, msg);
 }
-
 
 void usage () {
   g_printerr ("Usage: testsave <rtsp url> <filename>\n");

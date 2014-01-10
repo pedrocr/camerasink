@@ -17,6 +17,8 @@ typedef struct {
   GstElement *tee;
   GstElement *queue;
   GstElement *savebin;
+  GstElement *queue2;
+  GstElement *jpegbin;
 
   gulong      probeid;
 
@@ -34,13 +36,13 @@ void reset_probe (StreamInfo *si);
 static GstPadProbeReturn probe_data (GstPad *pad, GstPadProbeInfo *info, gpointer data);
 
 void padadd (GstElement *bin, GstPad *newpad, gpointer data) {
-  GstElement *tee = (GstElement *) data;
-  GstPad *tee_pad;
+  GstElement *sink = (GstElement *) data;
+  GstPad *sink_pad;
 
-  tee_pad = my_gst_element_get_static_pad (tee, "sink");
+  sink_pad = my_gst_element_get_static_pad (sink, "sink");
+  gst_pad_link(newpad,sink_pad);
 
-  gst_pad_link(newpad,tee_pad);
-  gst_object_unref (GST_OBJECT (tee_pad));
+  gst_object_unref (GST_OBJECT (sink_pad));
 }
 
 gboolean uriplug (GstElement *bin, GstPad *pad, GstCaps *caps, gpointer ud) {
@@ -89,6 +91,28 @@ bus_call (GstBus     *bus,
   }
 
   return TRUE;
+}
+
+GstElement *new_jpeg_bin() {
+  GstElement *bin, *decodebin, *jpegenc, *fakesink;
+  GstPad *pad;
+
+  bin = my_gst_bin_new ("jpegbin");
+  decodebin = my_gst_element_factory_make ("decodebin",  "decodebin");
+  jpegenc = my_gst_element_factory_make ("jpegenc", "jpegenc");
+  fakesink = my_gst_element_factory_make ("fakesink", "fakesink");
+
+  g_signal_connect (decodebin, "pad-added", G_CALLBACK(padadd), jpegenc);
+  gst_bin_add_many (GST_BIN(bin), decodebin, jpegenc, fakesink, NULL);
+  gst_element_link_many (jpegenc, fakesink, NULL);
+
+  /* add video ghostpad */
+  pad = my_gst_element_get_static_pad (decodebin, "sink");
+
+  gst_element_add_pad (bin, gst_ghost_pad_new ("video_sink", pad));
+  gst_object_unref (GST_OBJECT (pad));
+
+  return bin;
 }
 
 GstElement *new_save_bin(gchar *filedir) {
@@ -247,6 +271,8 @@ main (int   argc,
   si.tee = my_gst_element_factory_make ("tee", "tee");
   si.queue  = my_gst_element_factory_make ("queue", "queue");
   si.queuepad = my_gst_element_get_static_pad (si.queue, "src");
+  si.queue2  = my_gst_element_factory_make ("queue", "queue2");
+  si.jpegbin = my_gst_element_factory_make ("fakesink", "fakesink"); //new_jpeg_bin();
 
   /* create the bus */
   si.bus = gst_pipeline_get_bus (GST_PIPELINE (si.pipeline));
@@ -270,8 +296,14 @@ main (int   argc,
   g_signal_connect (si.source, "pad-added", G_CALLBACK(padadd), si.tee);
 
   /* we add all elements into the pipeline */
-  gst_bin_add_many (GST_BIN (si.pipeline), si.source, si.tee, si.queue, si.savebin, NULL);
-  gst_element_link_many (si.tee, si.queue, si.savebin,NULL);
+  gst_bin_add_many (GST_BIN (si.pipeline), si.source, si.tee, si.queue, 
+                                           si.savebin, NULL);  
+  gst_element_link_many (si.tee, si.queue, si.savebin, NULL);
+
+  /* FIXME: Adding the second branch to the tee breaks probe unblocking on
+            file change
+  gst_bin_add_many (GST_BIN (si.pipeline), si.queue2, si.jpegbin, NULL);
+  gst_element_link_many (si.tee, si.queue2, si.jpegbin, NULL); */
 
   /* Setup the data probe on queue element */
   /* Add a probe to react to I-frames at the output of the queue blocking it

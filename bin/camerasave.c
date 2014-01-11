@@ -29,6 +29,7 @@ typedef struct {
   gboolean    ignoreEOS;
 
   GstClockTime bufferoffset;
+  GHashTable *httpclients;
 } StreamInfo;
 
 void change_file (StreamInfo *si);
@@ -218,6 +219,8 @@ new_connection (SoupServer        *server,
                 SoupClientContext *client,
                 gpointer           user_data)
 {
+  StreamInfo *si = (StreamInfo *) user_data;
+
   g_print ("Got request: %s %s HTTP/1.%d\n", msg->method, path,
                                              soup_message_get_http_version (msg));
   if (msg->method != SOUP_METHOD_GET) {
@@ -234,6 +237,7 @@ new_connection (SoupServer        *server,
   soup_message_headers_append(msg->response_headers, "Keep-Alive", "timeout=5, max=99");
   soup_message_set_status (msg, SOUP_STATUS_OK);
   soup_server_pause_message(server, msg);
+  g_hash_table_add(si->httpclients, msg);
 }
 
 void usage () {
@@ -310,6 +314,7 @@ main (int   argc,
  and letting frames pile up if needed */
   reset_probe(&si);
 
+  si.httpclients = g_hash_table_new(NULL, NULL);
   httpaddress = soup_address_new(HTTP_LISTEN_ADDRESS, HTTP_LISTEN_PORT);
   exit_if_true(!httpaddress, "Couldn't create libsoup httpaddress\n");
   if (SOUP_STATUS_OK != soup_address_resolve_sync(httpaddress, NULL)) {

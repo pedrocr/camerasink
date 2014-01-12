@@ -7,6 +7,6 @@ class Test::Unit::TestCase
 
   def sh(cmd,message=nil) 
     message ||= "\"#{cmd}\" failed"
-    assert(system(cmd), message)
+    assert(system(cmd+" > /dev/null"), message)
   end
 end

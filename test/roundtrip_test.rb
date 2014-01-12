@@ -16,17 +16,17 @@ class TestRoundtrip < Test::Unit::TestCase
     FileUtils.mkdir_p testdir
     FileUtils.mkdir_p outputdir
 
-    sh "gst-launch-1.0 videotestsrc num-buffers=#{NUMBUFFERS} ! #{encoder} ! matroskamux ! filesink location=#{inputfile} > /dev/null"
+    sh "gst-launch-1.0 videotestsrc num-buffers=#{NUMBUFFERS} ! #{encoder} ! matroskamux ! filesink location=#{inputfile}"
 
-    sh "#{BINDIR}/camerasave file://#{inputfile} #{outputdir} > /dev/null"
-    sh "#{BINDIR}/filejoin #{outputfile} #{outputdir}/*.mkv > /dev/null"
+    sh "#{BINDIR}/camerasave file://#{inputfile} #{outputdir}"
+    sh "#{BINDIR}/filejoin #{outputfile} #{outputdir}/*.mkv"
     
     # Get raw video from input and output files to be able to do binary comparison
     [inputfile,outputfile].each do |file|
-      sh "gst-launch-1.0 filesrc location=#{file} ! decodebin ! filesink location=#{file}.raw > /dev/null"
+      sh "gst-launch-1.0 filesrc location=#{file} ! decodebin ! filesink location=#{file}.raw"
     end
 
-    sh "diff #{inputfile}.raw #{outputfile}.raw > /dev/null", "Binary files differ"
+    sh "diff #{inputfile}.raw #{outputfile}.raw", "Binary files differ"
 
     # Clean up at the end
     FileUtils.rm_rf testdir

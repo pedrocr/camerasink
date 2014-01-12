@@ -289,7 +289,7 @@ main (int   argc,
   si.queue  = my_gst_element_factory_make ("queue", "queue");
   si.queuepad = my_gst_element_get_static_pad (si.queue, "src");
   si.queue2  = my_gst_element_factory_make ("queue", "queue2");
-  si.jpegbin = my_gst_element_factory_make ("fakesink", "fakesink"); //new_jpeg_bin();
+  si.jpegbin = new_jpeg_bin();
 
   /* create the bus */
   si.bus = gst_pipeline_get_bus (GST_PIPELINE (si.pipeline));

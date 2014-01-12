@@ -59,19 +59,31 @@ bus_call (GstBus     *bus,
           gpointer    data)
 {
   StreamInfo *si = (StreamInfo *) data;
+  GstMessage *origmsg;
+  GstElement *filesink = gst_bin_get_by_name(GST_BIN(si->savebin), "filesink");
+  exit_if_true(!filesink, "Couldn't get the filesink from the bin!\n");
 
   switch (GST_MESSAGE_TYPE (msg)) {
-    case GST_MESSAGE_EOS:
-      if (si->ignoreEOS) {
-        si->ignoreEOS = FALSE;
-        g_print ("Changing file\n");
-        change_file(si);
-        g_print("Unblocking the pad\n");
-        reset_probe(si);
-      } else {
-        g_print ("Caught end of stream, strange!\n");
-        g_main_loop_quit (si->loop);
+    case GST_MESSAGE_ELEMENT:
+      gst_structure_get(gst_message_get_structure(msg), "message", 
+                        GST_TYPE_MESSAGE, &origmsg, NULL);
+      if (GST_MESSAGE_EOS == GST_MESSAGE_TYPE(origmsg) && 
+          filesink == GST_ELEMENT(GST_MESSAGE_SRC (origmsg))) {
+        if (si->ignoreEOS) {
+          si->ignoreEOS = FALSE;
+          g_print("Changing output file\n");
+          change_file(si);
+          g_print("Unblocking the pad\n");
+          reset_probe(si);
+        } else {
+          g_print ("Caught end of stream in the pipeline, strange, exiting!\n");
+          g_main_loop_quit (si->loop);
+        }
       }
+      break;
+    case GST_MESSAGE_EOS:
+      g_print ("Caught end of stream in the pipeline, strange, exiting!\n");
+      g_main_loop_quit (si->loop);
       break;
 
     case GST_MESSAGE_ERROR: {
@@ -128,6 +140,7 @@ GstElement *new_save_bin(gchar *filedir) {
   }  
 
   bin = my_gst_bin_new ("savebin");
+  g_object_set (G_OBJECT (bin), "message-forward", TRUE, NULL);
   mux = my_gst_element_factory_make ("matroskamux",  "matroskamux");
   filesink = my_gst_element_factory_make ("filesink", "filesink");
 
@@ -301,13 +314,12 @@ main (int   argc,
 
   /* we add all elements into the pipeline */
   gst_bin_add_many (GST_BIN (si.pipeline), si.source, si.tee, si.queue, 
-                                           si.savebin, NULL);  
+                                           si.savebin, NULL); 
+  g_object_set (G_OBJECT (si.pipeline), "message-forward", TRUE, NULL); 
   gst_element_link_many (si.tee, si.queue, si.savebin, NULL);
 
-  /* FIXME: Adding the second branch to the tee breaks probe unblocking on
-            file change
   gst_bin_add_many (GST_BIN (si.pipeline), si.queue2, si.jpegbin, NULL);
-  gst_element_link_many (si.tee, si.queue2, si.jpegbin, NULL); */
+  gst_element_link_many (si.tee, si.queue2, si.jpegbin, NULL);
 
   /* Setup the data probe on queue element */
   /* Add a probe to react to I-frames at the output of the queue blocking it

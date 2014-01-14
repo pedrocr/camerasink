@@ -35,6 +35,7 @@ typedef struct {
 void change_file (StreamInfo *si);
 void reset_probe (StreamInfo *si);
 static GstPadProbeReturn probe_data (GstPad *pad, GstPadProbeInfo *info, gpointer data);
+static GstPadProbeReturn new_jpeg (GstPad *pad, GstPadProbeInfo *info, gpointer data);
 
 void padadd (GstElement *bin, GstPad *newpad, gpointer data) {
   GstElement *sink = (GstElement *) data;
@@ -106,18 +107,25 @@ bus_call (GstBus     *bus,
   return TRUE;
 }
 
-GstElement *new_jpeg_bin() {
-  GstElement *bin, *decodebin, *jpegenc, *fakesink;
+GstElement *new_jpeg_bin(StreamInfo *si) {
+  GstElement *bin, *decodebin, *jpegenc, *sink;
+  gulong probeid;
   GstPad *pad;
 
   bin = my_gst_bin_new ("jpegbin");
   decodebin = my_gst_element_factory_make ("decodebin",  "decodebin");
   jpegenc = my_gst_element_factory_make ("jpegenc", "jpegenc");
-  fakesink = my_gst_element_factory_make ("fakesink", "fakesink");
+  sink = my_gst_element_factory_make ("fakesink", "fakesink");
 
   g_signal_connect (decodebin, "pad-added", G_CALLBACK(padadd), jpegenc);
-  gst_bin_add_many (GST_BIN(bin), decodebin, jpegenc, fakesink, NULL);
-  gst_element_link_many (jpegenc, fakesink, NULL);
+  pad = my_gst_element_get_static_pad (sink, "sink");
+  probeid = gst_pad_add_probe (pad, GST_PAD_PROBE_TYPE_BUFFER,
+                               (GstPadProbeCallback) new_jpeg, si, NULL);
+  exit_if_true(!probeid, "Couldn't set the probe on the jpeg sink");
+  gst_object_unref (GST_OBJECT (pad));
+
+  gst_bin_add_many (GST_BIN(bin), decodebin, jpegenc, sink, NULL);
+  gst_element_link_many (jpegenc, sink, NULL);
 
   /* add video ghostpad */
   pad = my_gst_element_get_static_pad (decodebin, "sink");
@@ -175,7 +183,7 @@ void reset_probe (StreamInfo *si) {
 
   /* Add a probe to react to I-frames at the output of the queue blocking it
    and letting frames pile up if needed */
-  pad = gst_element_get_static_pad (si->queue, "src");
+  pad = my_gst_element_get_static_pad (si->queue, "src");
   probeid = gst_pad_add_probe (pad, GST_PAD_PROBE_TYPE_BUFFER|
                                     GST_PAD_PROBE_TYPE_BLOCK,
                                (GstPadProbeCallback) probe_data, si, NULL);
@@ -187,6 +195,17 @@ void reset_probe (StreamInfo *si) {
 
   si->probeid = probeid;
   gst_object_unref (pad);
+}
+
+static GstPadProbeReturn new_jpeg (GstPad *pad, GstPadProbeInfo *info, gpointer data) {
+  //GstBufferFlags flags;
+  //GstBuffer *buffer;
+  //StreamInfo *si = (StreamInfo *) data;
+
+  //buffer = GST_PAD_PROBE_INFO_BUFFER(info);
+
+  g_print("Got jpeg image!\n");
+  return GST_PAD_PROBE_PASS;
 }
 
 static GstPadProbeReturn probe_data (GstPad *pad, GstPadProbeInfo *info, gpointer data) {
@@ -289,7 +308,7 @@ main (int   argc,
   si.queue  = my_gst_element_factory_make ("queue", "queue");
   si.queuepad = my_gst_element_get_static_pad (si.queue, "src");
   si.queue2  = my_gst_element_factory_make ("queue", "queue2");
-  si.jpegbin = new_jpeg_bin();
+  si.jpegbin = new_jpeg_bin(&si);
 
   /* create the bus */
   si.bus = gst_pipeline_get_bus (GST_PIPELINE (si.pipeline));

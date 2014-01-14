@@ -95,10 +95,6 @@ gboolean change_file(StreamInfo *si) {
   return FALSE;
 }
 
-void usage () {
-  g_printerr ("Usage: testread <output.mp4> <input1.mkv> ... <inputN.mkv>\n");
-}
-
 static GstPadProbeReturn
 source_event (GstPad          *pad,
               GstPadProbeInfo *info,
@@ -146,6 +142,10 @@ gboolean test_files(StreamInfo *fl) {
     }
   }
   return TRUE;
+}
+
+void usage () {
+  g_printerr ("Usage: filejoin <output.mkv> <input1.mkv> ... <inputN.mkv>\n");
 }
 
 int

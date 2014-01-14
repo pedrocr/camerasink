@@ -254,7 +254,7 @@ new_connection (SoupServer        *server,
 }
 
 void usage () {
-  g_printerr ("Usage: testsave <rtsp url> <filename>\n");
+  g_printerr ("Usage: camerasave <uri> <filedir>\n");
 }
 
 int

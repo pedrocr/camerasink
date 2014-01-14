@@ -197,14 +197,17 @@ void reset_probe (StreamInfo *si) {
   gst_object_unref (pad);
 }
 
+static void send_chunk (gpointer key, gpointer value, gpointer user_data) {
+  //GstBuffer *buffer = (GstBuffer *) user_data;
+}
+
 static GstPadProbeReturn new_jpeg (GstPad *pad, GstPadProbeInfo *info, gpointer data) {
-  //GstBufferFlags flags;
-  //GstBuffer *buffer;
-  //StreamInfo *si = (StreamInfo *) data;
+  GstBuffer *buffer;
+  StreamInfo *si = (StreamInfo *) data;
 
-  //buffer = GST_PAD_PROBE_INFO_BUFFER(info);
+  buffer = GST_PAD_PROBE_INFO_BUFFER(info);
+  g_hash_table_foreach(si->httpclients, (GHFunc) send_chunk, buffer);
 
-  g_print("Got jpeg image!\n");
   return GST_PAD_PROBE_PASS;
 }
 

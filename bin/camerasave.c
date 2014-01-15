@@ -198,7 +198,20 @@ void reset_probe (StreamInfo *si) {
 }
 
 static void send_chunk (gpointer key, gpointer value, gpointer user_data) {
-  //GstBuffer *buffer = (GstBuffer *) user_data;
+  GstBuffer *buffer = (GstBuffer *) user_data;
+  SoupMessage *msg = SOUP_MESSAGE(key);
+  SoupServer *server = SOUP_SERVER(value);
+  SoupBuffer *chunk;
+  GstMapInfo map;
+
+  gst_buffer_map (buffer, &map, GST_MAP_READ);
+  chunk = soup_buffer_new(SOUP_MEMORY_COPY, map.data, map.size);
+  gst_buffer_unmap (buffer, &map);
+
+  g_print ("[%p] writing chunk of %lu bytes\n", msg, (unsigned long)chunk->length);
+
+  soup_message_body_append_buffer (msg->response_body, chunk);
+  soup_server_unpause_message (server, msg);
 }
 
 static GstPadProbeReturn new_jpeg (GstPad *pad, GstPadProbeInfo *info, gpointer data) {
@@ -272,7 +285,7 @@ new_connection (SoupServer        *server,
   soup_message_headers_append(msg->response_headers, "Keep-Alive", "timeout=5, max=99");
   soup_message_set_status (msg, SOUP_STATUS_OK);
   soup_server_pause_message(server, msg);
-  g_hash_table_add(si->httpclients, msg);
+  g_hash_table_replace(si->httpclients, msg, server);
 }
 
 void usage () {

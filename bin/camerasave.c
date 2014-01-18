@@ -108,13 +108,14 @@ bus_call (GstBus     *bus,
 }
 
 GstElement *new_jpeg_bin(StreamInfo *si) {
-  GstElement *bin, *decodebin, *jpegenc, *sink;
+  GstElement *bin, *decodebin, *jpegenc, *multipartmux, *sink;
   gulong probeid;
   GstPad *pad;
 
   bin = my_gst_bin_new ("jpegbin");
   decodebin = my_gst_element_factory_make ("decodebin",  "decodebin");
   jpegenc = my_gst_element_factory_make ("jpegenc", "jpegenc");
+  multipartmux = my_gst_element_factory_make ("multipartmux", "multipartmux");
   sink = my_gst_element_factory_make ("fakesink", "fakesink");
 
   g_signal_connect (decodebin, "pad-added", G_CALLBACK(padadd), jpegenc);
@@ -124,8 +125,8 @@ GstElement *new_jpeg_bin(StreamInfo *si) {
   exit_if_true(!probeid, "Couldn't set the probe on the jpeg sink");
   gst_object_unref (GST_OBJECT (pad));
 
-  gst_bin_add_many (GST_BIN(bin), decodebin, jpegenc, sink, NULL);
-  gst_element_link_many (jpegenc, sink, NULL);
+  gst_bin_add_many (GST_BIN(bin), decodebin, jpegenc, multipartmux, sink, NULL);
+  gst_element_link_many (jpegenc, multipartmux, sink, NULL);
 
   /* add video ghostpad */
   pad = my_gst_element_get_static_pad (decodebin, "sink");

@@ -1,5 +1,6 @@
 #include <common.h>
 #include <libsoup/soup.h>
+#include <gst/app/gstappsink.h>
 
 #define MIN_FRAMES_PER_FILE 200
 #define HTTP_LISTEN_ADDRESS "127.0.0.1"
@@ -36,7 +37,7 @@ typedef struct {
 void change_file (StreamInfo *si);
 void reset_probe (StreamInfo *si);
 static GstPadProbeReturn probe_data (GstPad *pad, GstPadProbeInfo *info, gpointer data);
-static GstPadProbeReturn new_jpeg (GstPad *pad, GstPadProbeInfo *info, gpointer data);
+static GstFlowReturn new_jpeg (GstAppSink *sink, gpointer data);
 
 void padadd (GstElement *bin, GstPad *newpad, gpointer data) {
   GstElement *sink = (GstElement *) data;
@@ -110,30 +111,25 @@ bus_call (GstBus     *bus,
 
 GstElement *new_jpeg_bin(StreamInfo *si) {
   GstElement *bin, *decodebin, *jpegenc, *multipartmux, *sink;
-  gulong probeid;
   GstPad *pad;
 
   bin = my_gst_bin_new ("jpegbin");
   decodebin = my_gst_element_factory_make ("decodebin",  "decodebin");
   jpegenc = my_gst_element_factory_make ("jpegenc", "jpegenc");
   multipartmux = my_gst_element_factory_make ("multipartmux", "multipartmux");
-  sink = my_gst_element_factory_make ("fakesink", "fakesink");
+  sink = my_gst_element_factory_make ("appsink", "appsink");
 
   g_object_set (G_OBJECT (multipartmux), "boundary", HTTP_MULTIPART_BOUNDARY, NULL);
 
   g_signal_connect (decodebin, "pad-added", G_CALLBACK(padadd), jpegenc);
-  pad = my_gst_element_get_static_pad (sink, "sink");
-  probeid = gst_pad_add_probe (pad, GST_PAD_PROBE_TYPE_BUFFER,
-                               (GstPadProbeCallback) new_jpeg, si, NULL);
-  exit_if_true(!probeid, "Couldn't set the probe on the jpeg sink");
-  gst_object_unref (GST_OBJECT (pad));
+  g_signal_connect (sink, "new-sample", G_CALLBACK(new_jpeg), si);
+  g_object_set (G_OBJECT (sink), "emit-signals", TRUE, NULL);
 
   gst_bin_add_many (GST_BIN(bin), decodebin, jpegenc, multipartmux, sink, NULL);
   gst_element_link_many (jpegenc, multipartmux, sink, NULL);
 
   /* add video ghostpad */
   pad = my_gst_element_get_static_pad (decodebin, "sink");
-
   gst_element_add_pad (bin, gst_ghost_pad_new ("video_sink", pad));
   gst_object_unref (GST_OBJECT (pad));
 
@@ -216,14 +212,14 @@ static void send_chunk (gpointer key, gpointer value, gpointer user_data) {
   soup_server_unpause_message (server, msg);
 }
 
-static GstPadProbeReturn new_jpeg (GstPad *pad, GstPadProbeInfo *info, gpointer data) {
+static GstFlowReturn new_jpeg (GstAppSink *sink, gpointer data) {
   GstBuffer *buffer;
   StreamInfo *si = (StreamInfo *) data;
 
-  buffer = GST_PAD_PROBE_INFO_BUFFER(info);
+  buffer = gst_sample_get_buffer(gst_app_sink_pull_sample(sink));
   g_hash_table_foreach(si->httpclients, (GHFunc) send_chunk, buffer);
 
-  return GST_PAD_PROBE_PASS;
+  return GST_FLOW_OK;
 }
 
 static GstPadProbeReturn probe_data (GstPad *pad, GstPadProbeInfo *info, gpointer data) {

@@ -212,7 +212,7 @@ static void send_chunk (gpointer key, gpointer value, gpointer user_data) {
   chunk = soup_buffer_new(SOUP_MEMORY_COPY, map.data, map.size);
   gst_buffer_unmap (buffer, &map);
 
-  g_print ("[%p] writing chunk of %lu bytes\n", msg, (unsigned long)chunk->length);
+  //g_print ("[%p] writing chunk of %lu bytes\n", msg, (unsigned long)chunk->length);
 
   soup_message_body_append_buffer (msg->response_body, chunk);
   soup_server_unpause_message (server, msg);
@@ -259,7 +259,7 @@ static GstPadProbeReturn probe_data (GstPad *pad, GstPadProbeInfo *info, gpointe
   }
   
   GST_BUFFER_PTS(buffer) -= si->bufferoffset;
-  g_print("Processing buffer #%d of file\n", si->numframes);
+  //g_print("Processing buffer #%d of file\n", si->numframes);
   return GST_PAD_PROBE_PASS;
 }
 

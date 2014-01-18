@@ -212,6 +212,7 @@ static void send_chunk (gpointer key, gpointer value, gpointer user_data) {
   soup_message_body_append (msg->response_body, SOUP_MEMORY_COPY, map.data, map.size);
   gst_buffer_unmap (buffer, &map);
 
+  //g_print("Unpausing message [%p] in server [%p]\n", msg, server);
   soup_server_unpause_message (server, msg);
 }
 
@@ -268,6 +269,14 @@ void end_connection (SoupMessage *msg, gpointer user_data) {
   g_hash_table_remove(si->httpclients, msg);
 }
 
+void wrote_chunk (SoupMessage *msg, gpointer user_data) {
+  g_print("Wrote chunk!\n");
+}
+
+void wrote_body_data (SoupMessage *msg, SoupBuffer *chunk, gpointer user_data) {
+  g_print("Wrote data from chunk [%p]!\n", chunk);
+}
+
 static void
 new_connection (SoupServer        *server,
                 SoupMessage       *msg, 
@@ -288,11 +297,15 @@ new_connection (SoupServer        *server,
   soup_message_headers_set_encoding (msg->response_headers, SOUP_ENCODING_CHUNKED);
   soup_message_headers_append(msg->response_headers, "Content-Type", "multipart/x-mixed-replace;boundary=" HTTP_MULTIPART_BOUNDARY);
   soup_message_set_status (msg, SOUP_STATUS_OK);
+  soup_message_body_set_accumulate (msg->response_body, FALSE);
 
+  //g_print("Pausing message [%p] in server [%p]\n", msg, server);
   soup_server_pause_message(server, msg);
 
   g_hash_table_replace(si->httpclients, msg, server);
   g_signal_connect (msg, "finished", G_CALLBACK(end_connection), si);
+  g_signal_connect (msg, "wrote-chunk", G_CALLBACK(wrote_chunk), si);
+  g_signal_connect (msg, "wrote-body-data", G_CALLBACK(wrote_body_data), si);
 }
 
 void usage () {

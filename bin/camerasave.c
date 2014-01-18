@@ -259,6 +259,12 @@ static GstPadProbeReturn probe_data (GstPad *pad, GstPadProbeInfo *info, gpointe
   return GST_PAD_PROBE_PASS;
 }
 
+void end_connection (SoupMessage *msg, gpointer user_data) {
+  StreamInfo *si = (StreamInfo *) user_data;
+
+  g_hash_table_remove(si->httpclients, msg);
+}
+
 static void
 new_connection (SoupServer        *server,
                 SoupMessage       *msg, 
@@ -286,6 +292,8 @@ new_connection (SoupServer        *server,
   soup_message_set_status (msg, SOUP_STATUS_OK);
   soup_server_pause_message(server, msg);
   g_hash_table_replace(si->httpclients, msg, server);
+
+  g_signal_connect (msg, "finished", G_CALLBACK(end_connection), si);
 }
 
 void usage () {

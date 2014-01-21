@@ -1,6 +1,6 @@
 require 'rake/testtask'
 
-PROGS = ["camerasave","filejoin","testserver"].map{|p| "bin/"+p}
+PROGS = ["camerasave","filejoin","testserver","testcase_libsoup"].map{|p| "bin/"+p}
 BINDIR = File.expand_path('bin/', File.dirname(__FILE__))
 
 PROGS.each do |prog|

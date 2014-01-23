@@ -8,7 +8,7 @@ The media handling stuff is written in C with gstreamer. Eventually the "porcela
 
 ## Building
 
-Running "rake" with no arguments should both build the C code and run the test suite. Because of a few bugs found while writing this only the current gstreamer master branch will run this properly. When it's released gstreamer 1.2.3 should also do.
+Running "rake" with no arguments should both build the C code and run the test suite. "rake build" will do just the compiling without running the test suite. Because of a few bugs found while writing this only the current gstreamer master branch will run this properly. When it's released gstreamer 1.2.3 should also do.
 
 ## Usage
 

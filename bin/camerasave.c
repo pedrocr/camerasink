@@ -203,21 +203,42 @@ static void send_chunk (gpointer key, gpointer value, gpointer user_data) {
   SoupServer *server = SOUP_SERVER(value);
   GstMapInfo map;
 
+  g_print ("Sending a new chunk\n");
+
   gst_buffer_map (buffer, &map, GST_MAP_READ);
-  //g_print ("[%p] writing chunk of %lu bytes\n", msg, (unsigned long)chunk->length);
+
   soup_message_body_append (msg->response_body, SOUP_MEMORY_COPY, map.data, map.size);
   gst_buffer_unmap (buffer, &map);
 
-  //g_print("Unpausing message [%p] in server [%p]\n", msg, server);
   soup_server_unpause_message (server, msg);
+}
+
+typedef struct {
+  StreamInfo *si;
+  GstBuffer *buffer;
+} SendBufferInfo;
+
+gboolean send_buffer (SendBufferInfo *sbi) {
+  /* Send the chunk to all active clients and then we're done with SendBufferInfo */
+  g_hash_table_foreach(sbi->si->httpclients, (GHFunc) send_chunk, sbi->buffer);
+  g_free(sbi);
+
+  return FALSE;
 }
 
 static GstFlowReturn new_jpeg (GstAppSink *sink, gpointer data) {
   GstBuffer *buffer;
+  SendBufferInfo *sbi;
   StreamInfo *si = (StreamInfo *) data;
 
   buffer = gst_sample_get_buffer(gst_app_sink_pull_sample(sink));
-  g_hash_table_foreach(si->httpclients, (GHFunc) send_chunk, buffer);
+
+  /* Pack the StreamInfo and Buffer pointers into a single pointer o pass as data */
+  sbi = g_new0(SendBufferInfo, 1);
+  sbi->si = si;
+  sbi->buffer = buffer;
+  /* Run the actual buffer sending in the main context as libsoup is not thread safe */
+  g_idle_add((GSourceFunc) send_buffer, sbi);
 
   return GST_FLOW_OK;
 }
@@ -265,14 +286,6 @@ void end_connection (SoupMessage *msg, gpointer user_data) {
   g_hash_table_remove(si->httpclients, msg);
 }
 
-void wrote_chunk (SoupMessage *msg, gpointer user_data) {
-  g_print("Wrote chunk!\n");
-}
-
-void wrote_body_data (SoupMessage *msg, SoupBuffer *chunk, gpointer user_data) {
-  g_print("Wrote data from chunk [%p]!\n", chunk);
-}
-
 static void
 new_connection (SoupServer        *server,
                 SoupMessage       *msg, 
@@ -295,13 +308,10 @@ new_connection (SoupServer        *server,
   soup_message_set_status (msg, SOUP_STATUS_OK);
   soup_message_body_set_accumulate (msg->response_body, FALSE);
 
-  //g_print("Pausing message [%p] in server [%p]\n", msg, server);
   soup_server_pause_message(server, msg);
 
   g_hash_table_replace(si->httpclients, msg, server);
   g_signal_connect (msg, "finished", G_CALLBACK(end_connection), si);
-  g_signal_connect (msg, "wrote-chunk", G_CALLBACK(wrote_chunk), si);
-  g_signal_connect (msg, "wrote-body-data", G_CALLBACK(wrote_body_data), si);
 }
 
 void usage () {

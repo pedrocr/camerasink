@@ -203,8 +203,6 @@ static void send_chunk (gpointer key, gpointer value, gpointer user_data) {
   SoupServer *server = SOUP_SERVER(value);
   GstMapInfo map;
 
-  g_print ("Sending a new chunk\n");
-
   gst_buffer_map (buffer, &map, GST_MAP_READ);
 
   soup_message_body_append (msg->response_body, SOUP_MEMORY_COPY, map.data, map.size);

@@ -219,6 +219,7 @@ typedef struct {
 gboolean send_buffer (SendBufferInfo *sbi) {
   /* Send the chunk to all active clients and then we're done with SendBufferInfo */
   g_hash_table_foreach(sbi->si->httpclients, (GHFunc) send_chunk, sbi->buffer);
+  gst_buffer_unref(sbi->buffer);
   g_free(sbi);
 
   return FALSE;
@@ -234,6 +235,7 @@ static GstFlowReturn new_jpeg (GstAppSink *sink, gpointer data) {
   /* Pack the StreamInfo and Buffer pointers into a single pointer o pass as data */
   sbi = g_new0(SendBufferInfo, 1);
   sbi->si = si;
+  gst_buffer_ref(buffer);
   sbi->buffer = buffer;
   /* Run the actual buffer sending in the main context as libsoup is not thread safe */
   g_idle_add((GSourceFunc) send_buffer, sbi);

@@ -110,23 +110,26 @@ bus_call (GstBus     *bus,
 }
 
 GstElement *new_jpeg_bin(StreamInfo *si) {
-  GstElement *bin, *decodebin, *jpegenc, *multipartmux, *sink;
+  GstElement *bin, *decodebin, *videorate, *jpegenc, *multipartmux, *sink;
   GstPad *pad;
 
   bin = my_gst_bin_new ("jpegbin");
   decodebin = my_gst_element_factory_make ("decodebin",  "decodebin");
+  videorate = my_gst_element_factory_make ("videorate", "videorate");
   jpegenc = my_gst_element_factory_make ("jpegenc", "jpegenc");
   multipartmux = my_gst_element_factory_make ("multipartmux", "multipartmux");
   sink = my_gst_element_factory_make ("appsink", "appsink");
 
   g_object_set (G_OBJECT (multipartmux), "boundary", HTTP_MULTIPART_BOUNDARY, NULL);
+  g_object_set (G_OBJECT (videorate), "max-rate", 1, NULL);
+  g_object_set (G_OBJECT (videorate), "drop-only", TRUE, NULL);
 
-  g_signal_connect (decodebin, "pad-added", G_CALLBACK(padadd), jpegenc);
+  g_signal_connect (decodebin, "pad-added", G_CALLBACK(padadd), videorate);
   g_signal_connect (sink, "new-sample", G_CALLBACK(new_jpeg), si);
   g_object_set (G_OBJECT (sink), "emit-signals", TRUE, NULL);
 
-  gst_bin_add_many (GST_BIN(bin), decodebin, jpegenc, multipartmux, sink, NULL);
-  gst_element_link_many (jpegenc, multipartmux, sink, NULL);
+  gst_bin_add_many (GST_BIN(bin), decodebin, videorate, jpegenc, multipartmux, sink, NULL);
+  gst_element_link_many (videorate, jpegenc, multipartmux, sink, NULL);
 
   /* add video ghostpad */
   pad = my_gst_element_get_static_pad (decodebin, "sink");

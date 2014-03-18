@@ -1,6 +1,9 @@
 #include <stdlib.h>
 #include <glib.h>
 #include <gst/gst.h>
+#include <gio/gio.h>
+#include <gio/gunixoutputstream.h>
+#include <glib/gprintf.h>
 
 void exit_if_true(gboolean condition, gchar *message) {
   if (condition) {
@@ -54,3 +57,18 @@ GstElement *my_gst_pipeline_new(const gchar *name) {
   }
   return ret;
 } 
+
+void os_print(GOutputStream *stream, gchar const *format, ...) {
+  va_list args;
+  gchar *string;
+  gint numbytes;
+
+  va_start(args, format);
+  numbytes = g_vasprintf(&string, format, args);
+  va_end(args);
+
+  g_output_stream_write(stream, string, numbytes, NULL, NULL);
+  g_free(string);
+
+  g_output_stream_flush(stream, NULL, NULL);
+}

@@ -27,11 +27,14 @@ typedef struct {
   GstPad     *queuepad;
 
   gchar      *filedir;
+  gchar      *filename;
   guint       numframes;
   gboolean    ignoreEOS;
 
   GstClockTime bufferoffset;
   GHashTable *httpclients;
+
+  GOutputStream *master;
 } StreamInfo;
 
 void change_file (StreamInfo *si);
@@ -139,15 +142,15 @@ GstElement *new_jpeg_bin(StreamInfo *si) {
   return bin;
 }
 
-GstElement *new_save_bin(gchar *filedir) {
+GstElement *new_save_bin(gchar *filedir, StreamInfo *si) {
   GstElement *bin, *mux, *filesink;
   GstPad *pad;
-  gchar *filename;
 
   if (filedir) {
-    filename = g_strdup_printf("%s/%"G_GINT64_FORMAT".mkv",filedir,g_get_real_time());
+    si->filename = g_strdup_printf("%s/%"G_GINT64_FORMAT".mkv",filedir,g_get_real_time());
+    os_print(si->master, "NEWFILE: %s\n", si->filename);
   } else {
-    filename = "/dev/null";
+    si->filename = "/dev/null";
   }  
 
   bin = my_gst_bin_new ("savebin");
@@ -159,8 +162,8 @@ GstElement *new_save_bin(gchar *filedir) {
   gst_element_link_many (mux, filesink, NULL);
 
   /* we set the input filename to the source element */
-  g_print("Writing to %s\n", filename);
-  g_object_set (G_OBJECT (filesink), "location", filename, NULL);
+  g_print("Writing to %s\n", si->filename);
+  g_object_set (G_OBJECT (filesink), "location", si->filename, NULL);
 
   /* add video ghostpad */
   pad = my_gst_element_get_request_pad (mux, "video_%u");
@@ -174,7 +177,8 @@ GstElement *new_save_bin(gchar *filedir) {
 void change_file (StreamInfo *si){
   gst_element_set_state (si->savebin, GST_STATE_NULL);
     gst_bin_remove(GST_BIN(si->pipeline), si->savebin);
-      si->savebin = new_save_bin(si->filedir);
+      os_print(si->master, "CLOSEFILE: %s\n", si->filename);
+      si->savebin = new_save_bin(si->filedir, si);
       gst_bin_add (GST_BIN (si->pipeline), si->savebin);
     gst_element_link (si->queue, si->savebin);
   gst_element_set_state (si->savebin, GST_STATE_PLAYING);
@@ -329,7 +333,7 @@ new_connection (SoupServer        *server,
 }
 
 void usage () {
-  g_printerr ("Usage: camerasave <uri> <filedir>\n");
+  g_printerr ("Usage: camerasave <uri> <filedir> <masterfd>\n");
 }
 
 int
@@ -339,13 +343,14 @@ main (int   argc,
   StreamInfo si;
   SoupServer *httpserver;
   SoupAddress *httpaddress;
+  gint fd;
 
   /* Initialisation */
   gst_init (&argc, &argv);
   si.loop = g_main_loop_new (NULL, FALSE);
 
   /* Check input arguments */
-  if (argc != 3) {
+  if (argc != 4) {
     usage();
     return -1;
   }
@@ -356,6 +361,9 @@ main (int   argc,
     return -2;
   }
 
+  fd = (gint) g_ascii_strtoull(argv[3], NULL, 10);
+  si.master = g_unix_output_stream_new(fd, FALSE);
+  os_print (si.master, "STARTED\n");
 
   /* Create elements */
   si.pipeline = my_gst_pipeline_new ("savefile");
@@ -371,7 +379,7 @@ main (int   argc,
   si.bus_watch_id = gst_bus_add_watch (si.bus, bus_call, &si);
   gst_object_unref (si.bus);
 
-  si.savebin = new_save_bin(NULL);
+  si.savebin = new_save_bin(NULL, &si);
   exit_if_true(!si.savebin, "Couldn't create savebin");
   si.numframes = MIN_FRAMES_PER_FILE;
   si.filedir = argv[2];

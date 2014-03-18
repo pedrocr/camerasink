@@ -1,9 +1,7 @@
 require File.expand_path('test_helper.rb', File.dirname(__FILE__))
 
 class TestRoundtrip < Test::Unit::TestCase
-  NUMBUFFERS = 1000
-
-  def roundtrip_video(encoder)
+  def roundtrip_video(numbuffers, encoder)
     testdir = File.expand_path(TMPDIR+"/roundtrip_video_#{encoder}/")
     inputfile = File.expand_path(testdir+"/input.mkv")
     outputdir = File.expand_path(testdir+"/splits/")
@@ -16,7 +14,7 @@ class TestRoundtrip < Test::Unit::TestCase
     FileUtils.mkdir_p testdir
     FileUtils.mkdir_p outputdir
 
-    sh "gst-launch-1.0 videotestsrc num-buffers=#{NUMBUFFERS} ! #{encoder} ! matroskamux ! filesink location=#{inputfile}"
+    sh "gst-launch-1.0 videotestsrc num-buffers=#{numbuffers} ! #{encoder} ! matroskamux ! filesink location=#{inputfile}"
 
     sh "#{BINDIR}/camerasave file://#{inputfile} #{outputdir}"
     sh "#{BINDIR}/filejoin #{outputfile} #{outputdir}/*.mkv"
@@ -26,17 +24,17 @@ class TestRoundtrip < Test::Unit::TestCase
       sh "gst-launch-1.0 filesrc location=#{file} ! decodebin ! filesink location=#{file}.raw"
     end
 
-    sh "diff #{inputfile}.raw #{outputfile}.raw", "Binary files differ"
+    sh "diff #{inputfile}.raw #{outputfile}.raw", :message => "Binary files differ"
 
     # Clean up at the end
     FileUtils.rm_rf testdir
   end
 
   def test_roundtrip_h264
-    roundtrip_video("x264enc")
+    roundtrip_video(1000, "x264enc")
   end
 
   def test_roundtrip_mjpeg
-    roundtrip_video("jpegenc")
+    roundtrip_video(1000, "jpegenc")
   end
 end

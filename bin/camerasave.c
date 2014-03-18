@@ -278,18 +278,17 @@ static GstPadProbeReturn probe_data (GstPad *pad, GstPadProbeInfo *info, gpointe
   }
 
   if (si->bufferoffset > GST_BUFFER_PTS(buffer)) {
-    g_printerr("FATAL: Trying to offset buffer to underflow: "
+    g_printerr("BUG: Trying to offset buffer to underflow, ignoring: "
                "Buffer timestamp %"G_GUINT64_FORMAT
                " - %"G_GUINT64_FORMAT
                " = %"G_GUINT64_FORMAT"\n", 
                GST_BUFFER_PTS(buffer), 
                si->bufferoffset, 
                GST_BUFFER_PTS(buffer) - si->bufferoffset);  
-    exit(2);
+  } else {
+    GST_BUFFER_PTS(buffer) -= si->bufferoffset;
   }
-
-  GST_BUFFER_PTS(buffer) -= si->bufferoffset;
-  //g_print("Processing buffer #%d of file\n", si->numframes);
+  g_print("Processing buffer #%d of file\n", si->numframes);
   return GST_PAD_PROBE_PASS;
 }
 

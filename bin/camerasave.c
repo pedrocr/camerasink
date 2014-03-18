@@ -263,19 +263,31 @@ static GstPadProbeReturn probe_data (GstPad *pad, GstPadProbeInfo *info, gpointe
     g_print("Buffer is I-frame!\n");
     if (si->numframes >= MIN_FRAMES_PER_FILE) {
       si->numframes = 0;
-      savebinpad = my_gst_element_get_static_pad (si->savebin, "video_sink");
-      g_print("Posting EOS\n");
-      si->ignoreEOS = TRUE;
-      gst_pad_send_event(savebinpad, gst_event_new_eos());
-      gst_object_unref (GST_OBJECT (savebinpad));
-     
       /* We don't need to apply the offset in this branch because the probe will 
          be running again after the swap and using the other branch */
       si->bufferoffset = GST_BUFFER_PTS(buffer);
+
+      g_print("Posting EOS\n");
+      si->ignoreEOS = TRUE;
+      savebinpad = my_gst_element_get_static_pad (si->savebin, "video_sink");
+      gst_pad_send_event(savebinpad, gst_event_new_eos());
+      gst_object_unref (GST_OBJECT (savebinpad));
+
       return GST_PAD_PROBE_OK;
     }
   }
-  
+
+  if (si->bufferoffset > GST_BUFFER_PTS(buffer)) {
+    g_printerr("FATAL: Trying to offset buffer to underflow: "
+               "Buffer timestamp %"G_GUINT64_FORMAT
+               " - %"G_GUINT64_FORMAT
+               " = %"G_GUINT64_FORMAT"\n", 
+               GST_BUFFER_PTS(buffer), 
+               si->bufferoffset, 
+               GST_BUFFER_PTS(buffer) - si->bufferoffset);  
+    exit(2);
+  }
+
   GST_BUFFER_PTS(buffer) -= si->bufferoffset;
   //g_print("Processing buffer #%d of file\n", si->numframes);
   return GST_PAD_PROBE_PASS;

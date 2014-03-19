@@ -1,0 +1,12 @@
+#!/usr/bin/env ruby
+
+if ARGV.size != 2
+  $stderr.puts "Usage camerasink <source> <outputdir>"
+  exit 2
+end
+
+ENV['RAILS_ENV'] ||= 'development'               
+require File.expand_path("../config/environment", File.dirname(__FILE__))
+
+camera = Camera.new(ARGV[0], ARGV[1])
+camera.run

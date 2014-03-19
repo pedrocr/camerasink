@@ -11,7 +11,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema.define(version: 20140319142256) do
+ActiveRecord::Schema.define(version: 20140319185359) do
 
   create_table "blocks", force: true do |t|
     t.integer  "camera_id"
@@ -19,6 +19,7 @@ ActiveRecord::Schema.define(version: 20140319142256) do
     t.integer  "endtime",    limit: 8
     t.datetime "created_at"
     t.datetime "updated_at"
+    t.string   "filename"
   end
 
   add_index "blocks", ["camera_id"], name: "index_blocks_on_camera_id"
@@ -26,6 +27,7 @@ ActiveRecord::Schema.define(version: 20140319142256) do
   create_table "cameras", force: true do |t|
     t.datetime "created_at"
     t.datetime "updated_at"
+    t.string   "name"
   end
 
 end

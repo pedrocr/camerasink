@@ -3,16 +3,17 @@ class Camera < ActiveRecord::Base
 
   CAMERASAVE = File.expand_path('../../bin/camerasave', File.dirname(__FILE__))
 
-  def initialize(source, basedir)
-    @source = source
+  attr_accessor :source, :basedir
+  def basedir=(basedir)
     @basedir = basedir
     @tmpdir = File.expand_path('tmp', basedir)
-    FileUtils.mkdir_p @tmpdir
     @outdir = File.expand_path('stream', basedir)
-    FileUtils.mkdir_p @outdir
   end
 
   def run
+    FileUtils.mkdir_p @tmpdir
+    FileUtils.mkdir_p @outdir
+
     rd, wr = IO.pipe
     childpid = fork do
       rd.close
@@ -22,7 +23,7 @@ class Camera < ActiveRecord::Base
 
     while IO.select([rd])
       if rd.eof?
-        $stderr.puts "Got EOF on camerasave, seems to have stopped!"
+        logger.warn "Got EOF on camerasave, seems to have stopped!"
         break
       else
         parseline rd.readline
@@ -34,14 +35,19 @@ class Camera < ActiveRecord::Base
     parts = line.split
     case parts[0]
     when 'STARTED'
-      $stderr.puts "Camera is starting"
+      logger.info "Camera is starting"
     when 'CLOSEDFILE'
       newfile(parts[1],parts[2].to_i,parts[3].to_i)
     end
   end
 
   def newfile(filename, starttime, endtime)
-    $stderr.puts "File ended #{filename}, from #{starttime} to #{endtime}"
+    logger.info "File ended #{filename}, from #{starttime} to #{endtime}"
+    block = self.blocks.create
+    block.filename = filename
+    block.starttime = starttime
+    block.endtime = endtime
+    block.save!
     FileUtils.mv filename, @outdir
   end
 end

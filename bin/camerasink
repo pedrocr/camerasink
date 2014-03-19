@@ -8,5 +8,11 @@ end
 ENV['RAILS_ENV'] ||= 'development'               
 require File.expand_path("../config/environment", File.dirname(__FILE__))
 
-camera = Camera.new(ARGV[0], ARGV[1])
+p Block.all
+
+camera = Camera.new
+camera.name = "test"
+camera.source = ARGV[0]
+camera.basedir = ARGV[1]
+camera.save!
 camera.run

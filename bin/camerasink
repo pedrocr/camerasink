@@ -11,8 +11,6 @@ require File.expand_path('../config/application', File.dirname(__FILE__))
 Camerasink::BASEDIR = ARGV[1]
 Camerasink::Application.initialize!
 
-p Block.all
-
 camera = Camera.new
 camera.name = "test"
 camera.source = ARGV[0]

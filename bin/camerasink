@@ -5,8 +5,11 @@ if ARGV.size != 2
   exit 2
 end
 
-ENV['RAILS_ENV'] ||= 'development'               
-require File.expand_path("../config/environment", File.dirname(__FILE__))
+ENV['RAILS_ENV'] ||= 'production'
+# Load the Rails application.
+require File.expand_path('../config/application', File.dirname(__FILE__))
+Camerasink::BASEDIR = ARGV[1]
+Camerasink::Application.initialize!
 
 p Block.all
 

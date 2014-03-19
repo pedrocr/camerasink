@@ -31,6 +31,9 @@ typedef struct {
   guint       numframes;
   gboolean    ignoreEOS;
 
+  gint64      block_starttime;
+  gint64      block_endtime;
+
   GstClockTime bufferoffset;
   GHashTable *httpclients;
 
@@ -147,8 +150,13 @@ GstElement *new_save_bin(gchar *filedir, StreamInfo *si) {
   GstPad *pad;
 
   if (filedir) {
-    si->filename = g_strdup_printf("%s/%"G_GINT64_FORMAT".mkv",filedir,g_get_real_time());
-    os_print(si->master, "NEWFILE: %s\n", si->filename);
+    si->block_endtime = g_get_real_time();
+    if (si->block_starttime) {
+      os_print(si->master, "CLOSEDFILE: %s %"G_GINT64_FORMAT" %"G_GINT64_FORMAT"\n", 
+                           si->filename, si->block_starttime, si->block_endtime);
+    }
+    si->block_starttime = si->block_endtime;
+    si->filename = g_strdup_printf("%s/%"G_GINT64_FORMAT".mkv",filedir,si->block_starttime);
   } else {
     si->filename = "/dev/null";
   }  
@@ -177,7 +185,6 @@ GstElement *new_save_bin(gchar *filedir, StreamInfo *si) {
 void change_file (StreamInfo *si){
   gst_element_set_state (si->savebin, GST_STATE_NULL);
     gst_bin_remove(GST_BIN(si->pipeline), si->savebin);
-      os_print(si->master, "CLOSEFILE: %s\n", si->filename);
       si->savebin = new_save_bin(si->filedir, si);
       gst_bin_add (GST_BIN (si->pipeline), si->savebin);
     gst_element_link (si->queue, si->savebin);
@@ -333,7 +340,7 @@ new_connection (SoupServer        *server,
 }
 
 void usage () {
-  g_printerr ("Usage: camerasave <uri> <filedir> <masterfd>\n");
+  g_printerr ("Usage: camerasave <uri> <filedir> [masterfd]\n");
 }
 
 int
@@ -350,7 +357,7 @@ main (int   argc,
   si.loop = g_main_loop_new (NULL, FALSE);
 
   /* Check input arguments */
-  if (argc != 4) {
+  if (argc < 3) {
     usage();
     return -1;
   }
@@ -361,9 +368,13 @@ main (int   argc,
     return -2;
   }
 
-  fd = (gint) g_ascii_strtoull(argv[3], NULL, 10);
-  si.master = g_unix_output_stream_new(fd, FALSE);
-  os_print (si.master, "STARTED\n");
+  if (argc > 3) {
+    fd = (gint) g_ascii_strtoull(argv[3], NULL, 10);
+    si.master = g_unix_output_stream_new(fd, FALSE);
+    os_print (si.master, "STARTED\n");
+  } else {
+    si.master = NULL;
+  }
 
   /* Create elements */
   si.pipeline = my_gst_pipeline_new ("savefile");
@@ -381,6 +392,7 @@ main (int   argc,
 
   si.savebin = new_save_bin(NULL, &si);
   exit_if_true(!si.savebin, "Couldn't create savebin");
+  si.block_starttime = si.block_endtime = 0;
   si.numframes = MIN_FRAMES_PER_FILE;
   si.filedir = argv[2];
   si.ignoreEOS = FALSE;

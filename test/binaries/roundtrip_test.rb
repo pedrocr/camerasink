@@ -1,6 +1,6 @@
-require File.expand_path('test_helper.rb', File.dirname(__FILE__))
+require File.expand_path('../test_helper', File.dirname(__FILE__))
 
-class TestRoundtrip < Test::Unit::TestCase
+class TestRoundtrip < ActiveSupport::TestCase
   def roundtrip_video(numbuffers, encoder)
     testdir = File.expand_path(TMPDIR+"/roundtrip_video_#{encoder}/")
     inputfile = File.expand_path(testdir+"/input.mkv")

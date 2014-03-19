@@ -45,6 +45,11 @@ void reset_probe (StreamInfo *si);
 static GstPadProbeReturn probe_data (GstPad *pad, GstPadProbeInfo *info, gpointer data);
 static GstFlowReturn new_jpeg (GstAppSink *sink, gpointer data);
 
+void closedfile(StreamInfo *si) {
+  os_print(si->master, "CLOSEDFILE %s %"G_GINT64_FORMAT" %"G_GINT64_FORMAT"\n", 
+                     si->filename, si->block_starttime, si->block_endtime);
+}
+
 void padadd (GstElement *bin, GstPad *newpad, gpointer data) {
   GstElement *sink = (GstElement *) data;
   GstPad *sink_pad;
@@ -85,6 +90,8 @@ bus_call (GstBus     *bus,
           g_print("Unblocking the pad\n");
           reset_probe(si);
         } else {
+          si->block_endtime = g_get_real_time();
+          closedfile(si);
           g_print ("Caught end of stream in the pipeline, strange, exiting!\n");
           g_main_loop_quit (si->loop);
         }
@@ -152,8 +159,7 @@ GstElement *new_save_bin(gchar *filedir, StreamInfo *si) {
   if (filedir) {
     si->block_endtime = g_get_real_time();
     if (si->block_starttime) {
-      os_print(si->master, "CLOSEDFILE %s %"G_GINT64_FORMAT" %"G_GINT64_FORMAT"\n", 
-                           si->filename, si->block_starttime, si->block_endtime);
+      closedfile(si);
     }
     si->block_starttime = si->block_endtime;
     si->filename = g_strdup_printf("%s/%"G_GINT64_FORMAT".mkv",filedir,si->block_starttime);

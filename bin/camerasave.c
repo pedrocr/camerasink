@@ -152,7 +152,7 @@ GstElement *new_save_bin(gchar *filedir, StreamInfo *si) {
   if (filedir) {
     si->block_endtime = g_get_real_time();
     if (si->block_starttime) {
-      os_print(si->master, "CLOSEDFILE: %s %"G_GINT64_FORMAT" %"G_GINT64_FORMAT"\n", 
+      os_print(si->master, "CLOSEDFILE %s %"G_GINT64_FORMAT" %"G_GINT64_FORMAT"\n", 
                            si->filename, si->block_starttime, si->block_endtime);
     }
     si->block_starttime = si->block_endtime;

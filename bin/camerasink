@@ -5,15 +5,13 @@ if ARGV.size != 2
   exit 2
 end
 
+require 'fileutils'
+
 ENV['RAILS_ENV'] ||= 'production'
 # Load the Rails application.
 require File.expand_path('../config/application', File.dirname(__FILE__))
 Camerasink::BASEDIR = ARGV[1]
-Camerasink::Application.initialize!
+FileUtils.mkdir_p Camerasink::BASEDIR
+app = Camerasink::Application.initialize!
 
-camera = Camera.new
-camera.name = "test"
-camera.source = ARGV[0]
-camera.basedir = ARGV[1]
-camera.save!
-camera.run
+Rack::Server.new(:app => app).start

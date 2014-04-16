@@ -55,6 +55,9 @@ GEM
     multi_json (1.9.0)
     polyglot (0.3.4)
     rack (1.5.2)
+    rack-streaming-proxy (2.0.1)
+      rack (>= 1.4)
+      servolux (~> 0.10)
     rack-test (0.6.2)
       rack (>= 1.0)
     rails (4.0.4)
@@ -83,6 +86,7 @@ GEM
     sdoc (0.4.0)
       json (~> 1.8)
       rdoc (~> 4.0, < 5.0)
+    servolux (0.10.0)
     sprockets (2.11.0)
       hike (~> 1.2)
       multi_json (~> 1.0)
@@ -117,6 +121,7 @@ DEPENDENCIES
   coffee-rails (~> 4.0.0)
   jbuilder (~> 1.2)
   jquery-rails
+  rack-streaming-proxy (~> 2.0.1)
   rails (= 4.0.4)
   sass-rails (~> 4.0.2)
   sdoc

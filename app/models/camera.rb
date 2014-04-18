@@ -3,30 +3,35 @@ class Camera < ActiveRecord::Base
 
   CAMERASAVE = File.expand_path('../../bin/camerasave', File.dirname(__FILE__))
 
-  attr_accessor :source, :basedir
-  def basedir=(basedir)
-    @basedir = basedir
-    @tmpdir = File.expand_path('tmp', basedir)
-    @outdir = File.expand_path('stream', basedir)
-  end
+  attr_accessor :source
 
-  def run
+  def run!
+    if !name or !@source
+      logger.error "Trying to start camera without setting name or source"
+      return
+    end
+
+    @basedir = File.expand_path("cameras/#{name}/",Camerasink::BASEDIR)
+    @tmpdir = File.expand_path('tmp', @basedir)
+    @outdir = File.expand_path('stream', @basedir)
+    
+    #FIXME: Instead of deleting tmpdir we need to process partial files instead
+    FileUtils.rm_rf @tmpdir    
     FileUtils.mkdir_p @tmpdir
     FileUtils.mkdir_p @outdir
 
-    rd, wr = IO.pipe
-    childpid = fork do
-      rd.close
-      exec "#{CAMERASAVE} #{@source} #{@tmpdir} #{wr.fileno} > /dev/null"
-    end
-    wr.close
+    logger.info "Starting camera #{name} on #{@basedir}"
 
-    while IO.select([rd])
-      if rd.eof?
-        logger.warn "Got EOF on camerasave, seems to have stopped!"
-        break
-      else
-        parseline rd.readline
+    @runthread = Thread.new do
+      IO.popen("#{CAMERASAVE} #{@source} #{@tmpdir}") do |cs|
+        while IO.select([cs])
+          if cs.eof?
+            logger.warn "Got EOF on camerasave, seems to have stopped!"
+            break
+          else
+            parseline cs.readline
+          end
+        end
       end
     end
   end
@@ -38,6 +43,8 @@ class Camera < ActiveRecord::Base
       logger.info "Camera is starting"
     when 'CLOSEDFILE'
       newfile(parts[1],parts[2].to_i,parts[3].to_i)
+    else
+      logger.warn "CAMERASAVE: #{line}"
     end
   end
 

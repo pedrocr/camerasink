@@ -19,4 +19,7 @@ if defined? Camerasink::BASEDIR
   ActiveRecord::Base.logger = logger
   ActionController::Base.logger = logger
   ActionMailer::Base.logger = logger
+else
+  $stderr.puts "Trying to start the app without setting BASEDIR, no dice"
+  exit 2
 end

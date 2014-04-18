@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 
-if ARGV.size != 2
-  $stderr.puts "Usage camerasink <source> <outputdir>"
+if ARGV.size != 1
+  $stderr.puts "Usage camerasink <basedir>"
   exit 2
 end
 
@@ -10,7 +10,7 @@ require 'fileutils'
 ENV['RAILS_ENV'] ||= 'production'
 # Load the Rails application.
 require File.expand_path('../config/application', File.dirname(__FILE__))
-Camerasink::BASEDIR = ARGV[1]
+Camerasink::BASEDIR = ARGV[0]
 FileUtils.mkdir_p Camerasink::BASEDIR
 app = Camerasink::Application.initialize!
 

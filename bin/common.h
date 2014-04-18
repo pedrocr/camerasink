@@ -57,20 +57,3 @@ GstElement *my_gst_pipeline_new(const gchar *name) {
   }
   return ret;
 } 
-
-void os_print(GOutputStream *stream, gchar const *format, ...) {
-  va_list args;
-  gchar *string;
-  gint numbytes;
-
-  if (stream) {
-    va_start(args, format);
-    numbytes = g_vasprintf(&string, format, args);
-    va_end(args);
-
-    g_output_stream_write(stream, string, numbytes, NULL, NULL);
-    g_free(string);
-
-    g_output_stream_flush(stream, NULL, NULL);
-  }
-}

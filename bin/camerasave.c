@@ -37,8 +37,6 @@ typedef struct {
 
   GstClockTime bufferoffset;
   GHashTable *httpclients;
-
-  GOutputStream *master;
 } StreamInfo;
 
 void change_file (StreamInfo *si);
@@ -47,8 +45,8 @@ static GstPadProbeReturn probe_data (GstPad *pad, GstPadProbeInfo *info, gpointe
 static GstFlowReturn new_jpeg (GstAppSink *sink, gpointer data);
 
 void closedfile(StreamInfo *si) {
-  os_print(si->master, "CLOSEDFILE %s %"G_GINT64_FORMAT" %"G_GINT64_FORMAT"\n", 
-                     si->filename, si->block_starttime, si->block_endtime);
+  g_print("CLOSEDFILE %s %"G_GINT64_FORMAT" %"G_GINT64_FORMAT"\n", 
+          si->filename, si->block_starttime, si->block_endtime);
 }
 
 void padadd (GstElement *bin, GstPad *newpad, gpointer data) {
@@ -347,7 +345,7 @@ new_connection (SoupServer        *server,
 }
 
 void usage () {
-  g_printerr ("Usage: camerasave <uri> <filedir> [masterfd]\n");
+  g_printerr ("Usage: camerasave <uri> <filedir>\n");
 }
 
 int
@@ -358,7 +356,6 @@ main (int   argc,
   int httpport;
   SoupServer *httpserver;
   SoupAddress *httpaddress;
-  gint fd;
 
   /* Initialisation */
   gst_init (&argc, &argv);
@@ -374,14 +371,6 @@ main (int   argc,
     g_printerr ("FATAL: \"%s\" is not a directory\n", argv[2]);
     usage();
     return -2;
-  }
-
-  if (argc > 3) {
-    fd = (gint) g_ascii_strtoull(argv[3], NULL, 10);
-    si.master = g_unix_output_stream_new(fd, FALSE);
-    os_print (si.master, "STARTED\n");
-  } else {
-    si.master = NULL;
   }
 
   /* Create elements */
@@ -449,7 +438,7 @@ main (int   argc,
   exit_if_true(!httpserver, "Couldn't create libsoup httpserver\n");
   soup_server_add_handler (httpserver, "/mjpeg", new_connection, &si, NULL);
   soup_server_run_async (httpserver);
-  os_print (si.master, "LISTENING %d\n", httpport);
+  g_print ("LISTENING %d\n", httpport);
   g_print("Listening on http://%s:%d/\n", HTTP_LISTEN_ADDRESS, httpport);
 
   /* Set the pipeline to "playing" state*/

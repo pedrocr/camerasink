@@ -4,7 +4,8 @@
 
 #define MIN_FRAMES_PER_FILE 200
 #define HTTP_LISTEN_ADDRESS "127.0.0.1"
-#define HTTP_LISTEN_PORT 4000
+#define HTTP_LISTEN_BASEPORT 30000
+#define HTTP_LISTEN_MAXPORT 31000
 #define HTTP_SERVER_NAME "camerasave"
 #define HTTP_MULTIPART_BOUNDARY "SurelyJPEGDoesntIncludeThis"
 
@@ -354,6 +355,7 @@ main (int   argc,
       char *argv[])
 {
   StreamInfo si;
+  int httpport;
   SoupServer *httpserver;
   SoupAddress *httpaddress;
   gint fd;
@@ -428,18 +430,27 @@ main (int   argc,
   reset_probe(&si);
 
   si.httpclients = g_hash_table_new(NULL, NULL);
-  httpaddress = soup_address_new(HTTP_LISTEN_ADDRESS, HTTP_LISTEN_PORT);
-  exit_if_true(!httpaddress, "Couldn't create libsoup httpaddress\n");
-  if (SOUP_STATUS_OK != soup_address_resolve_sync(httpaddress, NULL)) {
-    g_printerr("FATAL: Can't resolve %s:%d\n", HTTP_LISTEN_ADDRESS, HTTP_LISTEN_PORT);
+
+  /* Set the http port to the first available one */
+  for(httpport=HTTP_LISTEN_BASEPORT; httpport<HTTP_LISTEN_MAXPORT; httpport++) {
+    httpaddress = soup_address_new(HTTP_LISTEN_ADDRESS, httpport);
+    exit_if_true(!httpaddress, "Couldn't create libsoup httpaddress\n");
+
+    if (SOUP_STATUS_OK != soup_address_resolve_sync(httpaddress, NULL)) {
+      g_printerr("FATAL: Can't resolve %s:%d\n", HTTP_LISTEN_ADDRESS, httpport);
+    }
+    httpserver = soup_server_new("server-header", HTTP_SERVER_NAME,
+                                 "interface", httpaddress,
+                                 NULL);
+    if (httpserver) {
+      break;
+    }
   }
-  httpserver = soup_server_new("server-header", HTTP_SERVER_NAME,
-                               "interface", httpaddress,
-                               NULL);
   exit_if_true(!httpserver, "Couldn't create libsoup httpserver\n");
   soup_server_add_handler (httpserver, "/mjpeg", new_connection, &si, NULL);
   soup_server_run_async (httpserver);
-  g_print("Listening on http://%s:%d/\n", HTTP_LISTEN_ADDRESS, HTTP_LISTEN_PORT);
+  os_print (si.master, "LISTENING %d\n", httpport);
+  g_print("Listening on http://%s:%d/\n", HTTP_LISTEN_ADDRESS, httpport);
 
   /* Set the pipeline to "playing" state*/
   gst_element_set_state (si.pipeline, GST_STATE_PLAYING);

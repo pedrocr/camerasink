@@ -4,6 +4,7 @@ source 'https://rubygems.org'
 gem 'rails', '4.0.4'
 
 gem 'rack-streaming-proxy', "~>2.0.1"
+gem 'puma', "~>2.8.2"
 
 # Use sqlite3 as the database for Active Record
 gem 'sqlite3'

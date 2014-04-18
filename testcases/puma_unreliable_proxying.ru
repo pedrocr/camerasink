@@ -5,7 +5,7 @@ require 'webrick'
 
 class BasicServing < WEBrick::HTTPServlet::AbstractServlet
   def do_GET(req, res)
-    res.body = "Hello!"*200+"\n"
+    res.body = "Hello!\n"
     res.status = 200
     res['Content-Type'] = "text/html"
   end

@@ -11,10 +11,11 @@ if defined? Camerasink::BASEDIR
   ActiveRecord::Base.establish_connection BASESPEC.merge(database: dbfile)
   ActiveRecord::Migrator.migrate("db/migrate/")
 
-  logdir = File.expand_path("log/", Camerasink::BASEDIR)
-  FileUtils.mkdir_p logdir
-  logfile = File.expand_path("camerasink.log", logdir)
-  logger = Logger.new(logfile)
+  #logdir = File.expand_path("log/", Camerasink::BASEDIR)
+  #FileUtils.mkdir_p logdir
+  #logfile = File.expand_path("camerasink.log", logdir)
+  #logger = Logger.new(logfile)
+  logger = Logger.new(STDOUT)
   Rails.logger = logger
   ActiveRecord::Base.logger = logger
   ActionController::Base.logger = logger

@@ -15,6 +15,11 @@ class CameraRunner
       Rails.logger.error "Couldn't find camera named #{name}"
       exit 2
     end
+    @lock = Mutex.new
+  end
+
+  def port
+    @lock.synchronize {return @port}
   end
 
   def run!
@@ -56,10 +61,10 @@ class CameraRunner
     when 'CLOSEDFILE'
       newfile(parts[1],parts[2].to_i,parts[3].to_i)
     when 'LISTENING'
-      @port = parts[1].to_i
+      @lock.synchronize {@port = parts[1].to_i}
       Rails.logger.info "Camera stream is on http://127.0.0.1:#{@port}/mjpeg"
     else
-      #Rails.logger.warn "CAMERASAVE: #{line}"
+      Rails.logger.warn "CAMERASAVE: #{line}"
     end
   end
 

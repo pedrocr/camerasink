@@ -1,6 +1,6 @@
 <p id="notice"><%= notice %></p>
 
-<img src="/camera/stream/<%= @camera.name %>">
+<img src="<%= stream_camera_path(@camera) %>">
 
 <%= link_to 'Edit', edit_camera_path(@camera) %> |
 <%= link_to 'Back', cameras_path %>

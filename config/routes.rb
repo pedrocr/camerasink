@@ -1,5 +1,9 @@
 Camerasink::Application.routes.draw do
-  resources :cameras
+  resources :cameras do
+    member do
+      get 'stream'
+    end
+  end
 
   # The priority is based upon order of creation: first created -> highest priority.
   # See how all your routes lay out with "rake routes".

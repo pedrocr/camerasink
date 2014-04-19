@@ -1,5 +1,7 @@
 class CamerasController < ApplicationController
-  before_action :set_camera, only: [:show, :edit, :update, :destroy]
+  include ActionController::Live
+
+  before_action :set_camera, only: [:show, :edit, :update, :destroy, :stream]
 
   # GET /cameras
   # GET /cameras.json
@@ -10,6 +12,31 @@ class CamerasController < ApplicationController
   # GET /cameras/1
   # GET /cameras/1.json
   def show
+  end
+
+  # GET /cameras/1/stream
+  def stream
+    if !@camera.port
+      # FIXME: return a "waiting for camera image jpg"
+    else
+      begin
+        response.headers['Content-Type'] = 'multipart/x-mixed-replace;boundary=SurelyJPEGDoesntIncludeThis'
+
+        logger.info "Connecting to camera on port #{@camera.port}"
+
+        Net::HTTP.start("127.0.0.1", @camera.port) do |http|
+          req = Net::HTTP::Get.new "/mjpeg"
+
+          http.request req do |res|
+            res.read_body do |chunk|
+              response.stream.write chunk
+            end
+          end
+        end
+      ensure
+        response.stream.close
+      end
+    end
   end
 
   # GET /cameras/new

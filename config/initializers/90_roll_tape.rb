@@ -1,5 +1,3 @@
-require 'rack/streaming_proxy'
-
 if defined? Camerasink::BASEDIR
   camera = Camera.find_by_name(:test)
   if !camera

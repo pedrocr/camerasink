@@ -1,7 +1,7 @@
 class CamerasController < ApplicationController
   include ActionController::Live
 
-  before_action :set_camera, only: [:show, :edit, :update, :destroy, :stream]
+  before_action :set_camera, only: [:show, :edit, :update, :destroy, :stream, :snap]
 
   # GET /cameras
   # GET /cameras.json
@@ -20,6 +20,14 @@ class CamerasController < ApplicationController
     @camera.mjpeg_stream do |chunk|
       response.stream.write chunk
     end
+  ensure
+    response.stream.close
+  end
+
+  # GET /cameras/1/snap
+  def snap
+    response.headers['Content-Type'] = Camera::JPEG_CONTENT_TYPE
+    response.stream.write @camera.jpeg_image
   ensure
     response.stream.close
   end

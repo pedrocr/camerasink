@@ -18,7 +18,8 @@ class Camera < ActiveRecord::Base
   def run!; runner.run!; end
   def port; runner.port; end
 
-  MJPEG_CONTENT_TYPE = 'multipart/x-mixed-replace;boundary=SurelyJPEGDoesntIncludeThis'
+  MJPEG_MARKER = "SurelyJPEGDoesntIncludeThis"
+  MJPEG_CONTENT_TYPE = "multipart/x-mixed-replace;boundary=#{MJPEG_MARKER}"
   def mjpeg_stream
     #FIXME: check that streaming is actually possible
     Rails.logger.info "Connecting to camera on port #{self.port}"
@@ -31,6 +32,16 @@ class Camera < ActiveRecord::Base
           yield chunk
         end
       end
+    end
+  end
+
+  JPEG_CONTENT_TYPE = "image/jpeg"
+  def jpeg_image
+    synched = false
+    mjpeg_stream do |chunk|
+      return chunk if synched
+      # Find a first line with the correct marker
+      synched = true if chunk[2...MJPEG_MARKER.size+2] == MJPEG_MARKER
     end
   end
 end

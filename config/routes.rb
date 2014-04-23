@@ -2,6 +2,7 @@ Camerasink::Application.routes.draw do
   resources :cameras do
     member do
       get 'stream'
+      get 'snap'
     end
   end
 

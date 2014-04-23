@@ -16,27 +16,12 @@ class CamerasController < ApplicationController
 
   # GET /cameras/1/stream
   def stream
-    if !@camera.port
-      # FIXME: return a "waiting for camera image jpg"
-    else
-      begin
-        response.headers['Content-Type'] = 'multipart/x-mixed-replace;boundary=SurelyJPEGDoesntIncludeThis'
-
-        logger.info "Connecting to camera on port #{@camera.port}"
-
-        Net::HTTP.start("127.0.0.1", @camera.port) do |http|
-          req = Net::HTTP::Get.new "/mjpeg"
-
-          http.request req do |res|
-            res.read_body do |chunk|
-              response.stream.write chunk
-            end
-          end
-        end
-      ensure
-        response.stream.close
-      end
+    response.headers['Content-Type'] = Camera::MJPEG_CONTENT_TYPE
+    @camera.mjpeg_stream do |chunk|
+      response.stream.write chunk
     end
+  ensure
+    response.stream.close
   end
 
   # GET /cameras/new

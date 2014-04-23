@@ -14,4 +14,4 @@ Camerasink::BASEDIR = ARGV[0]
 FileUtils.mkdir_p Camerasink::BASEDIR
 app = Camerasink::Application.initialize!
 
-Rack::Server.new(:app => app, :Host => '127.0.0.1', :Port => '8080').start
+Rack::Server.new(:app => app, :server => 'unicorn', :Host => '127.0.0.1', :Port => '8080').start
